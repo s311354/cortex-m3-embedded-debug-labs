@@ -1,0 +1,61 @@
+arm-none-eabi-gcc -mcpu=cortex-m3 -mthumb -g3 -O0 -ffreestanding -fdata-sections -ffunction-sections -Wall -I../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include -c main.c -o main.o
+In file included from main.c:2:
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1323:37: error: unknown type name 'IRQn_Type'; did you mean 'ITM_Type'?
+ 1323 | __STATIC_INLINE void NVIC_EnableIRQ(IRQn_Type IRQn)
+      |                                     ^~~~~~~~~
+      |                                     ITM_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1335:38: error: unknown type name 'IRQn_Type'; did you mean 'ITM_Type'?
+ 1335 | __STATIC_INLINE void NVIC_DisableIRQ(IRQn_Type IRQn)
+      |                                      ^~~~~~~~~
+      |                                      ITM_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1351:45: error: unknown type name 'IRQn_Type'; did you mean 'ITM_Type'?
+ 1351 | __STATIC_INLINE uint32_t NVIC_GetPendingIRQ(IRQn_Type IRQn)
+      |                                             ^~~~~~~~~
+      |                                             ITM_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1363:41: error: unknown type name 'IRQn_Type'; did you mean 'ITM_Type'?
+ 1363 | __STATIC_INLINE void NVIC_SetPendingIRQ(IRQn_Type IRQn)
+      |                                         ^~~~~~~~~
+      |                                         ITM_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1375:43: error: unknown type name 'IRQn_Type'; did you mean 'ITM_Type'?
+ 1375 | __STATIC_INLINE void NVIC_ClearPendingIRQ(IRQn_Type IRQn)
+      |                                           ^~~~~~~~~
+      |                                           ITM_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1390:41: error: unknown type name 'IRQn_Type'; did you mean 'ITM_Type'?
+ 1390 | __STATIC_INLINE uint32_t NVIC_GetActive(IRQn_Type IRQn)
+      |                                         ^~~~~~~~~
+      |                                         ITM_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1405:39: error: unknown type name 'IRQn_Type'; did you mean 'ITM_Type'?
+ 1405 | __STATIC_INLINE void NVIC_SetPriority(IRQn_Type IRQn, uint32_t priority)
+      |                                       ^~~~~~~~~
+      |                                       ITM_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1425:43: error: unknown type name 'IRQn_Type'; did you mean 'ITM_Type'?
+ 1425 | __STATIC_INLINE uint32_t NVIC_GetPriority(IRQn_Type IRQn)
+      |                                           ^~~~~~~~~
+      |                                           ITM_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h: In function 'NVIC_EncodePriority':
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1453:51: error: '__NVIC_PRIO_BITS' undeclared (first use in this function)
+ 1453 |   PreemptPriorityBits = ((7 - PriorityGroupTmp) > __NVIC_PRIO_BITS) ? __NVIC_PRIO_BITS : 7 - PriorityGroupTmp;
+      |                                                   ^~~~~~~~~~~~~~~~
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1453:51: note: each undeclared identifier is reported only once for each function it appears in
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h: In function 'NVIC_DecodePriority':
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1481:51: error: '__NVIC_PRIO_BITS' undeclared (first use in this function)
+ 1481 |   PreemptPriorityBits = ((7 - PriorityGroupTmp) > __NVIC_PRIO_BITS) ? __NVIC_PRIO_BITS : 7 - PriorityGroupTmp;
+      |                                                   ^~~~~~~~~~~~~~~~
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h: In function 'SysTick_Config':
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1537:3: error: implicit declaration of function 'NVIC_SetPriority'; did you mean 'NVIC_DecodePriority'? [-Wimplicit-function-declaration]
+ 1537 |   NVIC_SetPriority (SysTick_IRQn, (1<<__NVIC_PRIO_BITS) - 1);  /* set Priority for Systick Interrupt */
+      |   ^~~~~~~~~~~~~~~~
+      |   NVIC_DecodePriority
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1537:21: error: 'SysTick_IRQn' undeclared (first use in this function); did you mean 'SysTick_Type'?
+ 1537 |   NVIC_SetPriority (SysTick_IRQn, (1<<__NVIC_PRIO_BITS) - 1);  /* set Priority for Systick Interrupt */
+      |                     ^~~~~~~~~~~~
+      |                     SysTick_Type
+../../ARM_M3_design/m3designstart/software/cmsis/CMSIS/Include/core_cm3.h:1537:39: error: '__NVIC_PRIO_BITS' undeclared (first use in this function)
+ 1537 |   NVIC_SetPriority (SysTick_IRQn, (1<<__NVIC_PRIO_BITS) - 1);  /* set Priority for Systick Interrupt */
+      |                                       ^~~~~~~~~~~~~~~~
+main.c: In function 'main':
+main.c:11:32: error: expected ';' before ':' token
+   11 |     g_control = __get_CONTROL():
+      |                                ^
+      |                                ;
+make: *** [Makefile:42: main.o] Error 1
