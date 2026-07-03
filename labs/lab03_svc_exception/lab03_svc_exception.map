@@ -1,0 +1,142 @@
+
+Discarded input sections
+
+ .group         0x00000000        0xc main.o
+ .group         0x00000000        0xc main.o
+ .group         0x00000000        0xc main.o
+ .group         0x00000000        0xc main.o
+ .group         0x00000000        0xc main.o
+ .group         0x00000000        0xc main.o
+ .text          0x00000000        0x0 main.o
+ .data          0x00000000        0x0 main.o
+ .bss           0x00000000        0x0 main.o
+ .data          0x00000000        0x0 startup.o
+ .bss           0x00000000        0x0 startup.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+FLASH            0x00000000         0x00040000         xr
+RAM              0x20000000         0x00010000         xrw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD main.o
+LOAD startup.o
+START GROUP
+LOAD /home/shelton/toolchains/arm-gnu-toolchain-15.2.rel1-aarch64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/libgcc.a
+LOAD /home/shelton/toolchains/arm-gnu-toolchain-15.2.rel1-aarch64-arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.2.1/../../../../arm-none-eabi/lib/libc.a
+END GROUP
+                0x00000104                        _sidata = LOADADDR (.data)
+
+.text           0x00000000      0x104
+ *(.isr_vector)
+ .isr_vector    0x00000000       0xc0 startup.o
+ *(.text*)
+ .text.Trigger_SVC
+                0x000000c0        0xe main.o
+                0x000000c0                Trigger_SVC
+ *fill*         0x000000ce        0x2 
+ .text.SVC_Handler
+                0x000000d0       0x10 main.o
+                0x000000d0                SVC_Handler
+ .text.main     0x000000e0        0xc main.o
+                0x000000e0                main
+ .text          0x000000ec       0x18 startup.o
+                0x000000ec                Reset_Handler
+ *(.rodata*)
+
+.glue_7         0x00000104        0x0
+ .glue_7        0x00000104        0x0 linker stubs
+
+.glue_7t        0x00000104        0x0
+ .glue_7t       0x00000104        0x0 linker stubs
+
+.vfp11_veneer   0x00000104        0x0
+ .vfp11_veneer  0x00000104        0x0 linker stubs
+
+.v4_bx          0x00000104        0x0
+ .v4_bx         0x00000104        0x0 linker stubs
+
+.iplt           0x00000104        0x0
+ .iplt          0x00000104        0x0 main.o
+
+.rel.dyn        0x00000104        0x0
+ .rel.iplt      0x00000104        0x0 main.o
+
+.data           0x20000000        0x0 load address 0x00000104
+                0x20000000                        _sdata = .
+ *(.data*)
+                0x20000000                        _edata = .
+
+.igot.plt       0x20000000        0x0 load address 0x00000104
+ .igot.plt      0x20000000        0x0 main.o
+
+.bss            0x20000000        0x4 load address 0x00000104
+                0x20000000                        _sbss = .
+ *(.bss*)
+ .bss.exc_return
+                0x20000000        0x4 main.o
+                0x20000000                exc_return
+ *(COMMON)
+                0x20000004                        _ebss = .
+OUTPUT(lab03_svc_exception.elf elf32-littlearm)
+LOAD linker stubs
+
+.debug_info     0x00000000       0xf3
+ .debug_info    0x00000000       0xcf main.o
+ .debug_info    0x000000cf       0x24 startup.o
+
+.debug_abbrev   0x00000000       0xa5
+ .debug_abbrev  0x00000000       0x91 main.o
+ .debug_abbrev  0x00000091       0x14 startup.o
+
+.debug_aranges  0x00000000       0x50
+ .debug_aranges
+                0x00000000       0x30 main.o
+ .debug_aranges
+                0x00000030       0x20 startup.o
+
+.debug_rnglists
+                0x00000000       0x1f
+ .debug_rnglists
+                0x00000000       0x1f main.o
+
+.debug_macro    0x00000000     0x1c77
+ .debug_macro   0x00000000       0x50 main.o
+ .debug_macro   0x00000050      0xad8 main.o
+ .debug_macro   0x00000b28      0x523 main.o
+ .debug_macro   0x0000104b       0x22 main.o
+ .debug_macro   0x0000106d       0x3a main.o
+ .debug_macro   0x000010a7       0x2d main.o
+ .debug_macro   0x000010d4      0xba3 main.o
+
+.debug_line     0x00000000      0x207
+ .debug_line    0x00000000      0x1b4 main.o
+ .debug_line    0x000001b4       0x53 startup.o
+
+.debug_str      0x00000000     0x8367
+ .debug_str     0x00000000     0x8367 main.o
+                               0x86f0 (size before relaxing)
+ .debug_str     0x00008367        0x0 startup.o
+                                 0x9c (size before relaxing)
+
+.comment        0x00000000       0x45
+ .comment       0x00000000       0x45 main.o
+                                 0x46 (size before relaxing)
+
+.ARM.attributes
+                0x00000000       0x2b
+ .ARM.attributes
+                0x00000000       0x2d main.o
+ .ARM.attributes
+                0x0000002d       0x21 startup.o
+
+.debug_frame    0x00000000       0x5c
+ .debug_frame   0x00000000       0x5c main.o
+
+.debug_line_str
+                0x00000000       0x8e
+ .debug_line_str
+                0x00000000       0x8e startup.o

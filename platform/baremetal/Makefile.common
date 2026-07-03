@@ -1,0 +1,81 @@
+CC      := arm-none-eabi-gcc
+AS      := arm-none-eabi-gcc
+LD      := arm-none-eabi-gcc
+
+OBJCOPY := arm-none-eabi-objcopy
+OBJDUMP := arm-none-eabi-objdump
+SIZE    := arm-none-eabi-size
+
+GDB     := gdb-multiarch
+QEMU    := qemu-system-arm
+
+CPU     := cortex-m3
+
+vpath %.s $(COMMON)
+
+###############################
+# Flags
+###############################
+CFLAGS := \
+-mcpu=$(CPU) \
+-mthumb \
+-g3 \
+-O0 \
+-ffreestanding \
+-fdata-sections \
+-ffunction-sections \
+-Wall
+
+LDFLAGS := \
+-T$(LINKER_SCRIPT) \
+-nostartfiles \
+-Wl,--gc-sections \
+-Wl,-Map=$(TARGET).map
+
+ASFLAGS := $(CFLAGS)
+
+###############################
+# Build Rules
+###############################
+OBJS := $(SRC:.c=.o)
+OBJS := $(OBJS:.s=.o)
+
+all: $(TARGET).elf $(TARGET).bin
+
+%.o: %.c
+	$(CC) $(CFLAGS) -I$(CMSIS_INC) -I$(COMMON) -c $< -o $@
+%.o: %.s
+	$(AS) $(ASFLAGS) -c $< -o $@
+
+$(TARGET).elf: $(OBJS)
+	$(LD) $(OBJS) $(LDFLAGS) -o $@
+	$(SIZE) $@
+
+$(TARGET).bin:
+	$(OBJCOPY) -O binary $(TARGET).elf $(TARGET).bin
+
+dump: $(TARGET).elf
+	$(OBJDUMP) -d -S $<
+
+debug: $(TARGET).elf
+	$(QEMU) \
+		-M lm3s6965evb \
+		-cpu $(CPU) \
+		-S \
+		-gdb tcp::1234 \
+		-nographic
+	        -kernel $<
+
+gdb: $(TARGET).elf
+	$(GDB) \
+	        -ex "target remote :1234" \
+		-ex "file $(TARGET).elf"
+run: $(TARGET).elf
+	$(QEMU) \
+		-M lm3s6965evb \
+		-cpu $(CPU) \
+		-nographic \
+		-kernel $<
+
+clean:
+	rm -f *.o *.elf *.bin *.map
