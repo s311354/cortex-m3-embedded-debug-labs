@@ -48,13 +48,27 @@ Architecture
 # Repository Structure
 
 ```text
-labs/
-|--lab00_cross_compile
-|--lab01_core_registers
-|--lab02_interrupt_control
-|--lab03_svc_exception
-|--lab04_exception_stack
-|--lab05_privilege_stack
-
+cortex-m3-embedded-debug-labs/
+├── Makefile                  # Build all labs
+├── platform/
+│   ├── baremetal/
+│   │   ├── device.h
+│   │   ├── linker.ld
+│   │   ├── startup.s          # Minimal Startup
+│   │   └── Makefile.common
+│   │
+│   └── runtime/
+│       ├── linker.ld
+│       ├── startup.s          # Full C Runtime Startup
+│       └── runtime.c
+│
+├── labs/
+│   ├── lab00_cross_compile/
+│   ├── lab01_core_registers/
+│   ├── lab02_interrupt_control/
+│   ├── lab03_svc_exception/
+│   ├── lab04_exception_stack/
+│   ├── lab05_privilege_stack/
+└─  └── lab06_runtime/
 ```
 
