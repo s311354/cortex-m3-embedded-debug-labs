@@ -13,11 +13,12 @@ LABS := \
        lab03_svc_exception \
        lab04_stack_frame \
        lab05_privilege_stack \
-       lab06_startup_runtime
+       lab06_startup_runtime \
+       lab07_optimization
 
 LAB_DIR := labs
 
-.PHONY: all clean run debug gdb help list $(LABS)
+.PHONY: all clean run debug gdb dump help list $(LABS)
 
 # ===============================
 # Build every lab
@@ -64,6 +65,8 @@ debug:
 	$(error Usage: make debug LAB=<lab_name>)
 gdb:
 	$(error Usage: make gdb LAB=<lab_name>)
+dump:
+	$(error Usage: make dump LAB=<lab_name>)
 else
 run:
 	$(MAKE) -C $(LAB_DIR)/$(LAB) run
@@ -71,6 +74,8 @@ debug:
 	$(MAKE) -C $(LAB_DIR)/$(LAB) debug
 gdb:
 	$(MAKE) -C $(LAB_DIR)/$(LAB) gdb
+dump:
+	$(MAKE) -C $(LAB_DIR)/$(LAB) dump
 endif
 
 # ===============================
@@ -88,6 +93,7 @@ help:
 	@echo " make run LAB=<lab_name>       "
 	@echo " make debug LAB=<lab_name>     "
 	@echo " make gdb LAB=<lab_name>       "
+	@echo " make dump LAB=<lab_name>       "
 	@echo ""
 	@echo "Build a single lab:"
 	@for lab in $(LABS); do \

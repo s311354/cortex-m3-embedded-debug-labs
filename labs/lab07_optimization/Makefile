@@ -1,4 +1,4 @@
-TARGET := lab06_startup_runtime
+TARGET := lab07_optimization
 PLATFORM := runtime
 
 COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)

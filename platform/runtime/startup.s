@@ -46,10 +46,13 @@ zero_word:
     str r3, [r1], #4
     b zero_loop
 
+.thumb_func
 init_done:
     bl SystemInit
     #bl __libc_init_array
+    bl __local_init_array
     bl main
+    bl __local_cpp_fini
 
 1:
     b 1b
