@@ -60,6 +60,7 @@ cortex-m3-embedded-debug-labs/
 │   └── runtime/
 │       ├── linker.ld
 │       ├── startup.s          # Full C Runtime Startup
+│       ├── Makefile.common
 │       └── runtime.c
 │
 ├── labs/
@@ -69,6 +70,7 @@ cortex-m3-embedded-debug-labs/
 │   ├── lab03_svc_exception/
 │   ├── lab04_exception_stack/
 │   ├── lab05_privilege_stack/
-└─  └── lab06_runtime/
+│   ├── lab06_runtime/
+└─  └── lab07_optimization/
 ```
 
