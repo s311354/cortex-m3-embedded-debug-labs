@@ -67,13 +67,15 @@ debug: $(TARGET).elf
 		-cpu $(CPU) \
 		-S \
 		-gdb tcp::1234 \
-		-nographic
+		-nographic \
 	        -kernel $<
 
 gdb: $(TARGET).elf
 	$(GDB) \
-	        -ex "target remote :1234" \
-		-ex "file $(TARGET).elf"
+		$(TARGET).elf \
+	        -ex "target remote :1234"
+
+
 run: $(TARGET).elf
 	$(QEMU) \
 		-M lm3s6965evb \

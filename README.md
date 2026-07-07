@@ -1,4 +1,4 @@
-# Cortex-M3 Embedded Debug Labs
+# Cortex-M3 Embedded Debug Labs for Beginners - From First Debug to ARMv7
 
 Hands-on ARM Cortex-M3 laboratories designed for embedded software engineers to understand ARMv7-M architecture through cross compilation, low-level debugging, CMSIS, exception handling, and privilege management. 
 
