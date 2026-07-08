@@ -1,4 +1,4 @@
-TARGET := lab06_startup_runtime
+TARGET := lab12_uart_driver_abstraction
 PLATFORM := runtime
 
 COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)
@@ -12,8 +12,19 @@ LINKER_SCRIPT := $(COMMON)/linker.ld
 SRC := \
 startup.s \
 main.c \
-runtime.c 
+runtime.c \
+lm3s_uart.c \
+uart_driver.c 
 
 VPATH += $(COMMON)
 
 include $(COMMON)/Makefile.common
+
+
+
+
+
+
+
+
+

@@ -47,7 +47,7 @@ OBJS := $(OBJS:.s=.o)
 all: $(TARGET).elf $(TARGET).bin
 
 %.o: %.c
-	$(CC) $(CFLAGS) -I$(CMSIS_INC) -I$(COMMON) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(CMSIS_INC) -I$(CMSIS_MPS2) -I$(COMMON) -c $< -o $@
 %.o: %.s
 	$(AS) $(ASFLAGS) -c $< -o $@
 
@@ -63,7 +63,7 @@ dump: $(TARGET).elf
 
 debug: $(TARGET).elf
 	$(QEMU) \
-		-M lm3s6965evb \
+		-M mps2-an385 \
 		-cpu $(CPU) \
 		-S \
 		-gdb tcp::1234 \
@@ -75,10 +75,9 @@ gdb: $(TARGET).elf
 		$(TARGET).elf \
 	        -ex "target remote :1234"
 
-
 run: $(TARGET).elf
 	$(QEMU) \
-		-M lm3s6965evb \
+		-M mps2-an385 \
 		-cpu $(CPU) \
 		-nographic \
 		-kernel $<

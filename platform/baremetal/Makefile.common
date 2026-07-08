@@ -28,6 +28,10 @@ CFLAGS := \
 
 LDFLAGS := \
 -T$(LINKER_SCRIPT) \
+-mthumb \
+-mcpu=$(CPU) \
+--specs=nano.specs \
+--specs=nosys.specs \
 -nostartfiles \
 -Wl,--gc-sections \
 -Wl,-Map=$(TARGET).map
@@ -43,7 +47,7 @@ OBJS := $(OBJS:.s=.o)
 all: $(TARGET).elf $(TARGET).bin
 
 %.o: %.c
-	$(CC) $(CFLAGS) -I$(CMSIS_INC) -I$(COMMON) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(CMSIS_INC) -I$(CMSIS_MPS2) -I$(COMMON) -c $< -o $@
 %.o: %.s
 	$(AS) $(ASFLAGS) -c $< -o $@
 
@@ -59,7 +63,7 @@ dump: $(TARGET).elf
 
 debug: $(TARGET).elf
 	$(QEMU) \
-		-M lm3s6965evb \
+		-M mps2-an385 \
 		-cpu $(CPU) \
 		-S \
 		-gdb tcp::1234 \
@@ -73,7 +77,7 @@ gdb: $(TARGET).elf
 
 run: $(TARGET).elf
 	$(QEMU) \
-		-M lm3s6965evb \
+		-M mps2-an385 \
 		-cpu $(CPU) \
 		-nographic \
 		-kernel $<

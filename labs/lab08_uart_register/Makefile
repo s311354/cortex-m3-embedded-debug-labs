@@ -1,5 +1,5 @@
-TARGET := lab06_startup_runtime
-PLATFORM := runtime
+TARGET := lab08_uart_register
+PLATFORM := baremetal
 
 COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)
 
@@ -10,10 +10,18 @@ CMSIS_INC := $(CORTEX_ROOT)/m3designstart/software/cmsis/CMSIS/Include
 LINKER_SCRIPT := $(COMMON)/linker.ld
 
 SRC := \
-startup.s \
 main.c \
-runtime.c 
+startup.s
 
 VPATH += $(COMMON)
 
 include $(COMMON)/Makefile.common
+
+
+
+
+
+
+
+
+
