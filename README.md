@@ -71,6 +71,11 @@ cortex-m3-embedded-debug-labs/
 │   ├── lab04_exception_stack/
 │   ├── lab05_privilege_stack/
 │   ├── lab06_runtime/
-└─  └── lab07_optimization/
+│   ├── lab07_optimization/
+│   ├── lab08_uart_register/
+│   ├── lab09_uart_polling/
+│   ├── lab10_uart_interrupt/
+│   ├── lab11_uart_ringbuffer/
+└─  └── lab12_uart_driver_abstraction/
 ```
 
