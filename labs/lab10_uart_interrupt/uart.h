@@ -2,35 +2,30 @@
 #define UART_H
 
 #include <stdint.h>
-
-#define UART0_BASE 0x4000C000UL
+#include "CM3DS_MPS2.h"
 
 typedef struct {
-    volatile uint32_t DR;
-    volatile uint32_t RSR_ECR;
-    uint32_t RESERVED0[4];
-    volatile uint32_t FR;
-    uint32_t RESERVED1;
-    volatile uint32_t ILPR;
-    volatile uint32_t IBRD;
-    volatile uint32_t FBRD;
-    volatile uint32_t LCRH;
-    volatile uint32_t CTL;
+    volatile uint32_t DATA;
+    volatile uint32_t STATE;
+    volatile uint32_t CTRL;
 
-    volatile uint32_t IFLS;
-    volatile uint32_t IMSC;
-    volatile uint32_t RIS;
-    volatile uint32_t MIS;
-    volatile uint32_t ICR;
+    union {
+        volatile const uint32_t INTSTATUS;
+	volatile uint32_t INTCLEAR;
+    };
+
+    volatile uint32_t BAUDDIV;
 } UART_TypeDef;
-
 
 void uart_init(void);
 void uart_enable_irq(void);
+
 void uart_putc(char c);
 char uart_getc(void);
 void uart_puts(const char *);
 
-#define UART0 ((UART_TypeDef*) UART0_BASE)
+void UART0_Handler(void);
+
+#define UART0 ((UART_TypeDef*) CM3DS_MPS2_UART0_BASE)
 
 #endif

@@ -1,5 +1,4 @@
 #include "uart.h"
-#include "ringbuffer.h"
 
 void uart_init(void) {
     /* 1. Disable UART */
@@ -12,23 +11,11 @@ void uart_init(void) {
     UART0->CTRL = CM3DS_MPS2_UART_CTRL_TXEN_Msk | CM3DS_MPS2_UART_CTRL_RXEN_Msk | CM3DS_MPS2_UART_CTRL_RXIRQEN_Msk;
 }
 
-void uart_enable_irq(void) {
-    UART0->CTRL |= CM3DS_MPS2_UART_CTRL_RXIRQEN_Msk;
-
-    NVIC_EnableIRQ(UART0_IRQn);
-}
-
 void uart_putc(char c) {
     while (UART0->STATE & CM3DS_MPS2_UART_STATE_TXBF_Msk) {
     }
 
     UART0->DATA = (uint32_t) c;
-}
-
-void uart_puts(const char *s) {
-    while (*s) {
-        uart_putc(*s++);
-    }
 }
 
 char uart_getc(void) {
@@ -37,4 +24,3 @@ char uart_getc(void) {
 
     return (char) (UART0->DATA & CM3DS_MPS2_UART_DATA_Msk);
 }
-

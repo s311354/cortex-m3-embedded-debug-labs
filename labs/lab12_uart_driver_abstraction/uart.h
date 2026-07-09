@@ -17,8 +17,10 @@ typedef struct {
     volatile uint32_t BAUDDIV;
 } UART_TypeDef;
 
-#define UART0 ((UART_TypeDef*) CM3DS_MPS2_UART0_BASE)
-
 void uart_init(void);
+void uart_putc(char c);
+char uart_getc(void);
+
+#define UART0 ((UART_TypeDef*) CM3DS_MPS2_UART0_BASE)
 
 #endif

@@ -80,6 +80,7 @@ run: $(TARGET).elf
 		-M mps2-an385 \
 		-cpu $(CPU) \
 		-nographic \
+		-serial mon:stdio \
 		-kernel $<
 
 clean:

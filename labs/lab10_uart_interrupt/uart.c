@@ -1,36 +1,27 @@
-#include "device.h"
 #include "uart.h"
-
 
 void uart_init(void) {
     /* 1. Disable UART */
-    UART0->CTL = 0x0;
+    UART0->CTRL = 0x0;
 
-    /* 2. Set baud rate (example: 115200 for 16MHz clock) */
-    UART0->IBRD = 8;    // integer part
-    UART0->FBRD = 44;   // fractional part
+    /* 2. Set baud rate (example: 115200 for 25MHz clock) */
+    UART0->BAUDDIV = 217;
 
-    /* 3. Line control: 8-bit, no parity, 1 stop bit, FIFO disabled */
-    UART0->LCRH = (3 << 5);   // WLEN = 8 bits
-
-    /* 4. Enable UART, TX, RX */
-    UART0->CTL = (1 << 0) | (1 << 8) | (1 << 9);
+    /* 3. Enable UART, TX, RX */
+    UART0->CTRL = CM3DS_MPS2_UART_CTRL_TXEN_Msk | CM3DS_MPS2_UART_CTRL_RXEN_Msk;
 }
 
-#define UART_RXIM (1 << 4)
-//#define UART0_IRQn 0
-
 void uart_enable_irq(void) {
-    UART0->ICR = 0x7FF;
-
-    UART0->IMSC |= UART_RXIM;
+    UART0->CTRL |= CM3DS_MPS2_UART_CTRL_RXIRQEN_Msk;
 
     NVIC_EnableIRQ(UART0_IRQn);
 }
 
 void uart_putc(char c) {
-    while (UART0->FR & (1 << 5));
-    UART0->DR = c;
+    while (UART0->STATE & CM3DS_MPS2_UART_STATE_TXBF_Msk) {
+    }
+
+    UART0->DATA = (uint32_t) c;
 }
 
 void uart_puts(const char *s) {
@@ -39,12 +30,24 @@ void uart_puts(const char *s) {
     }
 }
 
+char uart_getc(void) {
+    while (!(UART0->STATE & CM3DS_MPS2_UART_STATE_RXBF_Msk)) {
+    }
+
+    return (char) (UART0->DATA & CM3DS_MPS2_UART_DATA_Msk);
+}
+
 void UART0_Handler(void) {
-    if (UART0->MIS & (1 << 4)) {
-        char c = UART0->DR;
+    uint32_t status = UART0->INTSTATUS;
+
+    if (status & CM3DS_MPS2_UART_CTRL_RXIRQ_Msk) {
+        char c = UART0->DATA & CM3DS_MPS2_UART_DATA_Msk;
+
+	UART0->INTCLEAR = CM3DS_MPS2_UART_CTRL_RXIRQ_Msk;
 
         uart_putc(c);
-
-	UART0->ICR = (1 << 4);
     }
+
+    if (status & CM3DS_MPS2_UART_CTRL_RXORIRQ_Msk)
+        UART0->INTCLEAR = CM3DS_MPS2_UART_CTRL_RXORIRQ_Msk;
 }

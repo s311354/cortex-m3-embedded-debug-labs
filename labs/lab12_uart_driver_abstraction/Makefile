@@ -13,7 +13,7 @@ SRC := \
 startup.s \
 main.c \
 runtime.c \
-lm3s_uart.c \
+uart.c \
 uart_driver.c 
 
 VPATH += $(COMMON)

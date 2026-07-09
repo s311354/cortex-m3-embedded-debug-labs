@@ -1,6 +1,6 @@
 #include <stdint.h>
-#include "device.h"
 #include "uart.h"
+#include "device.h"
 
 __attribute__((naked))
 void SVC_Handler(void) {
@@ -8,8 +8,9 @@ void SVC_Handler(void) {
 }
 
 int main(void) {
-    UART0->DR = 'A';
+    uart_init();
 
+    UART0->DATA = 'A';
 
     while (1) {
     }

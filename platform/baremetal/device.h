@@ -17,7 +17,6 @@ typedef enum {
 #define __Vendor_SysTickConfig 0U
 */
 
-#include "CM3DS_MPS2.h"
 #include "core_cm3.h"
 
 

@@ -11,6 +11,7 @@ LINKER_SCRIPT := $(COMMON)/linker.ld
 
 SRC := \
 main.c \
+uart.c \
 startup.s
 
 VPATH += $(COMMON)

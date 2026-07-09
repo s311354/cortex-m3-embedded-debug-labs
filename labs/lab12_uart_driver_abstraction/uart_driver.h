@@ -1,19 +1,30 @@
 #ifndef UART_DRIVER_H
 #define UART_DRIVER_H
 
-typedef struct uart_ops {
-    void (*putc)(char);
+struct uart_driver_ops {
+    void (*init)(void);
 
-    int (*getc)(void);
+    void (*putc)(char c);
 
-} uart_ops_t;
+    char (*getc)(void);
 
-typedef struct uart_device {
+};
 
-    const uart_ops_t *ops;
 
-} uart_device_t;
+struct uart_device {
+    const struct uart_driver_ops *ops;
+};
 
-extern uart_device_t uart0;
+static inline void uart_driver_init(struct uart_device *dev) {
+    return dev->ops->init();
+}
+
+static inline void uart_driver_putc(struct uart_device *dev, char c) {
+    dev->ops->putc(c);
+}
+
+static inline int uart_driver_getc(struct uart_device *dev) {
+    return dev->ops->getc();
+}
 
 #endif

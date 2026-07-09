@@ -6,17 +6,16 @@
 #define RB_SIZE 64
 
 typedef struct {
-    char data[RB_SIZE];
+    volatile char data[RB_SIZE];
 
-    uint32_t head;
-    uint32_t tail;
+    volatile uint32_t head;
+    volatile uint32_t tail;
 } ringbuffer_t;
 
-void rb_init(void);
-void rb_push(char c);
-char rb_pop(void);
-int rb_empty(void);
-
-extern ringbuffer_t rb;
+void rb_init(ringbuffer_t *rb);
+bool rb_empty(ringbuffer_t *rb);
+bool rb_full(ringbuffer_t *rb);
+bool rb_push(ringbuffer_t *rb,uint8_t c);
+bool rb_pop(ringbuffer_t *rb, uint8_t *c);
 
 #endif

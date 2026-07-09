@@ -1,6 +1,6 @@
 #include <stdint.h>
-
 #include "uart.h"
+#include "device.h"
 
 __attribute__((naked))
 void SVC_Handler(void) {

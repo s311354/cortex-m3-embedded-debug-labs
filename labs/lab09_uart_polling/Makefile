@@ -17,12 +17,3 @@ startup.s
 VPATH += $(COMMON)
 
 include $(COMMON)/Makefile.common
-
-
-
-
-
-
-
-
-

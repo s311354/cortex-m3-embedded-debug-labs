@@ -1,33 +1,33 @@
 #include "ringbuffer.h"
 
-ringbuffer_t rb;
-
-void rb_init(void) {
-    rb.head = 0;
-    rb.tail = 0;
+void rb_init(ringbuffer_t *rb) {
+    rb->head = 0;
+    rb->tail = 0;
 }
 
-void rb_push(char c) {
-    uint32_t next;
-
-    next = (rb.head + 1) % RB_SIZE;
-
-    if (next != rb.tail) {
-        rb.data[rb.head] = c;
-	rb.head = next;
-    }
+bool rb_empty(ringbuffer_t *rb) {
+    return rb->head == rb->tail;
 }
 
-char rb_pop(void) {
-    char c;
-
-    c = rb.data[rb.tail];
-    ++rb.tail;
-    rb.tail %= RB_SIZE;
-    
-    return c;
+bool rb_full(ringbuffer_t *rb) {
+    return ((rb->head + 1) % RB_SIZE) == rb->tail;
 }
 
-int rb_empty(void) {
-    return rb.head == rb.tail;
+bool rb_push(ringbuffer_t *rb, uint8_t c) {
+    if (rb_full(rb))
+        return false;
+
+    rb->data[rb->head] = c;
+    rb->head = (rb->head + 1) % RB_SIZE;
+
+    return true;
+}
+
+bool rb_pop(ringbuffer_t *rb, uint8_t *c) {
+    if (rb_empty(rb))
+        return false;
+
+    *c = rb->data[rb->tail];
+    rb->tail = (rb->tail + 1) % RB_SIZE;
+    return true;
 }
