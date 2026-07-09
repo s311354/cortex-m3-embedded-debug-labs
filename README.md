@@ -41,6 +41,9 @@ Emulator
 Debugger
 - GDB / gdb-multiarch
 
+Platform
+- Arm MPS2 + AN385 Cortex-M3
+
 Architecture
 - ARMv7-M
 - Cortex-M3
