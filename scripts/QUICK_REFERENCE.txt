@@ -1,0 +1,97 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║            Cortex-M3 Labs - Tmux + Kiro Quick Reference                 ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ STARTUP                                                                  ║
+║   ./scripts/tmux.sh                      Start tmux workspace            ║
+║   ./scripts/tmux.sh cortexm3 lab01       Start with specific lab        ║
+║   ./scripts/lab-switch.sh 03             Switch to lab (by number)      ║
+║   ./scripts/kiro-helper.sh               Show Kiro helper commands      ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ TMUX WINDOWS (Prefix = Ctrl+b by default)                               ║
+║   Prefix + k          → Kiro window     (AI assistant)                  ║
+║   Prefix + d          → Debug window    (QEMU + GDB + Build)            ║
+║   Prefix + l          → Lab window      (Code editing)                  ║
+║   Prefix + a          → Analysis window (objdump/readelf)               ║
+║   Prefix + g          → Git window      (Version control)               ║
+║   Prefix + 1-5        → Switch by number                                ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ TMUX QUICK ACTIONS                                                       ║
+║   Prefix + b          → Quick build (prompt for lab)                    ║
+║   Prefix + r          → Quick run (prompt for lab)                      ║
+║   Prefix + K          → Ask Kiro (prompt for question)                  ║
+║   Prefix + L          → Switch lab (prompt for name)                    ║
+║   Prefix + R          → Reload config                                   ║
+║   Prefix + S          → Sync panes (toggle)                             ║
+║   Prefix + |          → Split horizontal                                ║
+║   Prefix + -          → Split vertical                                  ║
+║   Prefix + H/J/K/L    → Resize pane                                     ║
+║   Prefix + [          → Copy mode                                       ║
+║   Prefix + d          → Detach from session                             ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ KIRO HELPER COMMANDS                                                     ║
+║   kh analyze-lab <lab>       Analyze lab code                           ║
+║   kh review-code <file>      Review for best practices                  ║
+║   kh explain-disasm <lab>    Explain assembly                           ║
+║   kh optimize <lab>          Optimization suggestions                   ║
+║   kh debug-help              GDB commands reference                     ║
+║   kh register-help <reg>     Explain register (CONTROL, PSR, etc.)      ║
+║   kh exception-help          Exception handling overview                ║
+║   kh linker-script           Analyze linker script                      ║
+║   kh fix-error <msg>         Debug compiler errors                      ║
+║   kh quick <question>        Quick question                             ║
+║   kh goal <task>             Start goal-oriented task                   ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ DEVELOPMENT WORKFLOW                                                     ║
+║   1. Start:    ./scripts/tmux.sh cortexm3 lab01_core_registers          ║
+║   2. Learn:    kh analyze-lab lab01_core_registers                      ║
+║   3. Debug:    make debug LAB=lab01_core_registers  (Debug pane 0)      ║
+║   4. GDB:      make gdb LAB=lab01_core_registers    (Debug pane 1)      ║
+║   5. Analyze:  make dump LAB=lab01_core_registers   (Analysis window)   ║
+║   6. Ask:      kiro chat "explain this code..."     (Kiro window)       ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ LAB COMMANDS                                                             ║
+║   make list                  List all labs                              ║
+║   make lab01_core_registers  Build specific lab                         ║
+║   make run LAB=lab01_...     Run with QEMU                              ║
+║   make debug LAB=lab01_...   Debug with QEMU (wait for GDB)             ║
+║   make gdb LAB=lab01_...     Connect GDB to QEMU                        ║
+║   make dump LAB=lab01_...    Disassemble                                ║
+║   make clean                 Clean all builds                           ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ GDB ESSENTIALS                                                           ║
+║   break main                 Set breakpoint                             ║
+║   continue / c               Continue execution                         ║
+║   step / s                   Step into                                  ║
+║   next / n                   Step over                                  ║
+║   info registers             Show all registers                         ║
+║   info registers r0 r1 sp    Show specific registers                    ║
+║   print variable             Print variable                             ║
+║   x/4wx 0x20000000          Examine memory (4 words, hex)              ║
+║   backtrace / bt             Stack trace                                ║
+║   list                       Show source code                           ║
+║   disassemble                Disassemble current function               ║
+║   monitor system_reset       QEMU: reset system                         ║
+║   quit                       Exit GDB                                   ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ ARM TOOLS                                                                ║
+║   arm-none-eabi-gcc          Compiler                                   ║
+║   arm-none-eabi-objdump -d   Disassemble                                ║
+║   arm-none-eabi-objdump -S   Disassemble with source                    ║
+║   arm-none-eabi-readelf -a   Full ELF info                              ║
+║   arm-none-eabi-readelf -S   Section headers                            ║
+║   arm-none-eabi-nm -S        Symbol table with sizes                    ║
+║   arm-none-eabi-size         Section sizes                              ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ ALIASES (Add to ~/.bashrc)                                              ║
+║   alias cm3='cd ~/cortex-m3-embedded-debug-labs && ./scripts/tmux.sh'   ║
+║   alias lab='~/cortex-m3-embedded-debug-labs/scripts/lab-switch.sh'     ║
+║   alias kh='~/cortex-m3-embedded-debug-labs/scripts/kiro-helper.sh'     ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ TIPS                                                                     ║
+║   • Mouse enabled - click to select pane                                ║
+║   • Scrollback: 10000 lines (Prefix + [ for copy mode)                  ║
+║   • Pane titles show purpose - visible at top of each pane              ║
+║   • Activity monitoring alerts you when background commands complete    ║
+║   • Use Prefix + S to run same command in all panes                     ║
+║   • Kiro can read files: kiro chat --file <path>                        ║
+╚══════════════════════════════════════════════════════════════════════════╝

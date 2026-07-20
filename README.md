@@ -82,3 +82,17 @@ cortex-m3-embedded-debug-labs/
 └─  └── lab12_uart_driver_abstraction/
 ```
 
+# Quick Start with Tmux + Kiro CLI
+
+For an optimized development workflow with AI assistance:
+
+```bash
+# Start with specific lab
+./scripts/tmux.sh cortexm3 lab01_core_registers
+
+# Switch labs
+./scripts/lab-switch.sh 01
+
+# Get Kiro help
+./scripts/kiro-helper.sh analyze-lab lab01_core_registers
+```
