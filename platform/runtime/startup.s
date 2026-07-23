@@ -5,7 +5,7 @@
 
 .section .isr_vector,"a",%progbits
 
-.word 0x20010000              /*Initial MSP*/
+.word __stack_top              /* Initial MSP from linker script */
 .word Reset_Handler
 .word NMI_Handler
 .word HardFault_Handler

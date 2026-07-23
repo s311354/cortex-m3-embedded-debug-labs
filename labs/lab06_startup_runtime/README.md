@@ -69,45 +69,12 @@ Reset_Handler:
 
 ## Debug Session: Verify Memory Initialization
 
-### Step 1: Examine Startup Symbols
-
-```gdb
-# Connect to QEMU
-(gdb) target remote :1234
-
-# View startup symbols
-(gdb) info variables _s
-```
-
-Expected output:
-```
-0x00000000  _sidata         # Load address of .data (in FLASH)
-0x20000000  _sdata          # Start of .data (in RAM)
-0x20000xxx  _edata          # End of .data
-0x20000xxx  _sbss           # Start of .bss
-0x20000xxx  _ebss           # End of .bss
-```
-
-### Step 2: Breakpoint at Reset Handler
-
-```gdb
-# Set breakpoint at startup
-(gdb) break Reset_Handler
-Breakpoint 1 at 0x...: file startup.s, line 17.
-
-# Run to breakpoint
-(gdb) continue
-```
-
-### Step 3: Inspect Data Copy Loop
+### Step 1: Inspect Data Copy Loop
 
 ```gdb
 # Set breakpoint at copy loop
 (gdb) break copy_loop
 Breakpoint 2 at 0x...
-
-# Continue
-(gdb) continue
 
 # View registers
 (gdb) info registers r0 r1 r2 r3
@@ -125,15 +92,12 @@ r3             0x...    # Data being copied
 (gdb) x/4wx $r1    # Destination (RAM)
 ```
 
-### Step 4: Inspect BSS Zero Loop
+### Step 2: Inspect BSS Zero Loop
 
 ```gdb
 # Set breakpoint at zero loop
 (gdb) break zero_loop
 Breakpoint 3 at 0x...
-
-# Continue
-(gdb) continue
 
 # View registers
 (gdb) info registers r1 r2 r3
@@ -145,7 +109,7 @@ r3             0x0      # Zero value
 (gdb) x/8wx $r1
 ```
 
-### Step 5: Verify Constructor Arrays
+### Step 3: Verify Constructor Arrays
 
 ```gdb
 # Check constructor array boundaries
@@ -155,7 +119,6 @@ r3             0x0      # Zero value
 
 # Set breakpoint in __local_init_array
 (gdb) break __local_init_array
-(gdb) continue
 
 # Step through constructor calls
 (gdb) next

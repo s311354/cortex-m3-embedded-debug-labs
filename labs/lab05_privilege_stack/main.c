@@ -89,6 +89,7 @@ int main(void) {
     __set_PSP((uint32_t)&process_stack[64]);
 
     control = __get_CONTROL();
+    psp_after = __get_PSP();
 
     /* SPSEL = 1 (MSP -> PSP)
      * nPRIV = 1 (Privileged -> Unprivileged)
@@ -101,7 +102,6 @@ int main(void) {
 
     control_after = __get_CONTROL();
     msp_after = __get_MSP();
-    psp_after = __get_PSP();
 
     DumpSpecialRegisters();
 

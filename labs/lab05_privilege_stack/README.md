@@ -109,8 +109,8 @@ Lower Address
 
 ```gdb
 # Set breakpoint before mode switch
-(gdb) break main.c:65
-Breakpoint 1 at 0x...: file main.c, line 65.
+(gdb) break main.c:86
+Breakpoint 1 at 0x...: file main.c, line 86.
 
 (gdb) continue
 
@@ -125,15 +125,11 @@ $2 = 0x20007ff0
 $3 = 0x0
 
 # Continue to after mode switch
-(gdb) break main.c:80
+(gdb) break main.c:97
 (gdb) continue
 
-# Inspect after state (Unprivileged, PSP)
-(gdb) print/x control_after
-$4 = 0x3
-
 (gdb) print/x psp_after
-$5 = 0x20007e00    # Points to process_stack
+$4 = 0x20007e00    # Points to process_stack
 
 # Set breakpoint in SVC handler
 (gdb) break SVC_Handler_C
@@ -141,23 +137,23 @@ $5 = 0x20007e00    # Points to process_stack
 
 # Inspect EXC_RETURN
 (gdb) print/x lr
-$6 = 0xfffffffd    # Bit 2 = 1 (PSP was active)
+$5 = 0xfffffffd    # Bit 2 = 1 (PSP was active)
 
 # Inspect stack frame
 (gdb) print/x dump[0]
-$7 = 0x11111111    # R0
+$6 = 0x11111111    # R0
 
 (gdb) print/x dump[1]
-$8 = 0x22222222    # R1
+$7 = 0x22222222    # R1
 
 (gdb) print/x dump[2]
-$9 = 0x33333333    # R2
+$8 = 0x33333333    # R2
 
 (gdb) print/x dump[3]
-$10 = 0x44444444   # R3
+$9 = 0x44444444   # R3
 
 (gdb) print/x dump[6]
-$11 = 0x...        # PC (return address after SVC)
+$10 = 0x...        # PC (return address after SVC)
 
 # View complete stack frame
 (gdb) x/8xw stack

@@ -83,7 +83,7 @@ $2 = 0x0
 $3 = 0x0
 
 (gdb) print/x g_msp
-$4 = 0x20007ff0
+$4 = 0x20001800
 
 (gdb) print/x g_psp
 $5 = 0x0
@@ -104,7 +104,7 @@ At startup in Thread mode:
 | CONTROL  | `0x00000000` | Privileged mode, MSP active |
 | PRIMASK  | `0x00000000` | Interrupts enabled |
 | IPSR     | `0x00000000` | Thread mode (no exception) |
-| MSP      | `0x20007FF0` | Top of RAM (depends on linker script) |
+| MSP      | `0x20001800` | Top of RAM (depends on linker script) |
 | PSP      | `0x00000000` | Not initialized yet |
 
 ## Understanding the Results

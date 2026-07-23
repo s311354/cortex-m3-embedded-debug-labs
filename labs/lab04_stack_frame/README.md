@@ -75,9 +75,9 @@ $3 = 0x33333333      # R2
 (gdb) print/x dump[3]
 $4 = 0x44444444      # R3
 (gdb) print/x dump[6]
-$5 = 0x000001xx      # PC (return address)
+$5 = 0x00000d6      # PC (return address)
 (gdb) print/x dump[7]
-$6 = 0x01000000      # xPSR
+$6 = 0x41000200      # xPSR
 ```
 
 ### 3. Examine EXC_RETURN

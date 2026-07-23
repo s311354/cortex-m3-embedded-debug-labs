@@ -118,7 +118,7 @@ Exception handlers are regular C/Assembly functions:
 ### 1. Verify Vector Table
 
 ```bash
-arm-none-eabi-objdump -d -j .isr_vector lab00_cross_compile.elf
+arm-none-eabi-objdump -d -j .text lab00_cross_compile.elf
 ```
 
 Expected output shows:

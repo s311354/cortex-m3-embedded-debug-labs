@@ -48,6 +48,9 @@ Architecture
 - ARMv7-M
 - Cortex-M3
 
+AI Assistant
+- Kiro CLI
+
 # Repository Structure
 
 ```text

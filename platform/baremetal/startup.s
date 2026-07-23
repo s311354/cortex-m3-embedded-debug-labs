@@ -6,7 +6,7 @@
 
 .section .isr_vector,"a",%progbits
 
-.word 0x20010000              /*Initial MSP*/
+.word __stack_top              /* Initial MSP from linker script */
 
 /* Cortex-M Exceptions (vector table) */
 .word Reset_Handler
