@@ -179,7 +179,7 @@ int main(void) {
 
 #endif
 
-#ifdef PRACTICE15
+#ifdef PRACTICE5
     dwt_init();
     
     DWT->CYCCNT = 0;
@@ -191,7 +191,7 @@ int main(void) {
     cycle_inline = DWT->CYCCNT;
 #endif
 
-#ifdef PRACTICE5
+#ifdef PRACTICE6
     register_access();
     stack_access();
     global_access();
