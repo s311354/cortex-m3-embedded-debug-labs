@@ -97,14 +97,16 @@ struct uart_device uart0 = {
 
 ```
 Flash (ROM):
-├── .text        → Code
-├── .rodata      → uart_ops (function pointer table)
+├── .text        → Code + const data (uart_ops merged here)
+│                  Note: .rodata* merged into .text by linker script
 └── .data (LMA)  → Initial values for uart0
 
 RAM:
 └── .data (VMA)  → uart0 (device instance)
                    Copied from Flash by startup code
 ```
+
+**Important**: While the compiler places `const` data in `.rodata`, the linker script (`platform/runtime/linker.ld`) merges `.rodata*` into the `.text` section. This is a common embedded pattern since both code and read-only data belong in Flash. When debugging, you'll see `uart_ops` in `.text`, not as a separate `.rodata` section.
 
 ## Expected Behavior
 
@@ -119,30 +121,39 @@ RAM:
 
 ```gdb
 (gdb) print uart_ops
-$1 = {init = 0x8000abc <uart_init>, 
-      putc = 0x8000def <uart_putc>, 
-      getc = 0x8000123 <uart_getc>}
+$1 = {init = 0x211 <uart_init>, 
+      putc = 0x235 <uart_putc>, 
+      getc = 0x261 <uart_getc>}
 
 (gdb) print &uart_ops
-$2 = (const struct uart_driver_ops *) 0x8001234
+$2 = (const struct uart_driver_ops *) 0x284
 
-# Verify it's in Flash (.rodata section)
-(gdb) info symbol 0x8001234
-uart_ops in section .rodata
+# Verify it's in Flash (.text section)
+# Note: Linker script merges .rodata* into .text section
+(gdb) info symbol 0x284
+uart_ops in section .text
 ```
 
 ### 2. Examine Device Instance
 
+**Important**: You must examine `uart0` **after** `.data` initialization! Break at `main` to ensure the startup code has copied `.data` from Flash to RAM.
+
 ```gdb
+# Break at main (after .data initialization)
+(gdb) break main
+(gdb) continue
+
+# Now examine uart0
 (gdb) print uart0
-$3 = {ops = 0x8001234 <uart_ops>}
+$3 = {ops = 0x284 <uart_ops>}
 
 (gdb) print &uart0
-$4 = (struct uart_device *) 0x20000100
+$4 = (struct uart_device *) 0x20000000
 
 # Verify it's in RAM (.data section)
-(gdb) info symbol 0x20000100
+(gdb) info symbol 0x20000000
 uart0 in section .data
+
 ```
 
 ### 3. Trace Indirect Function Calls
@@ -163,23 +174,33 @@ uart_putc (c=65 'A') at uart.c:8
 
 # Examine UART registers
 (gdb) print/x *UART0
-$5 = {DATA = 0x0, STATE = 0x2, CTRL = 0x7, ...}
+$5 = {DATA = 0x0, STATE = 0x0, CTRL = 0xb, ...}
 ```
 
-### 4. Analyze Memory Sections
+### 4. Understand .data Initialization Timing
+
+# Now RAM has the correct value
+
+```
+(gdb) x/4xb 0x20000000
+0x20000000:     0x84    0x02    0x00    0x00    ← Copied from Flash!
+
+```
+
+**Key insight**: Global variables with initializers are stored in Flash (`.data` LMA) and copied to RAM (`.data` VMA) by startup code before `main()`. The initial values are determined by the **linker** at build time, not computed at runtime. The startup code only performs a **memcpy operation**.
+
+### 5. Analyze Memory Sections
 
 ```bash
 # View section sizes
 arm-none-eabi-size lab12_uart_driver_abstraction.elf
 
-# Examine .rodata (should contain uart_ops)
-arm-none-eabi-objdump -s -j .rodata lab12_uart_driver_abstraction.elf
+# Examine .text section (contains code AND const data like uart_ops)
+arm-none-eabi-objdump -s -j .text lab12_uart_driver_abstraction.elf
 
-# Examine .data section (should contain uart0 initialization)
-arm-none-eabi-objdump -s -j .data lab12_uart_driver_abstraction.elf
-
-# See all symbols and their sections
-arm-none-eabi-nm lab12_uart_driver_abstraction.elf | grep -E 'uart_ops|uart0'
+# See where uart_ops is located (will show .text, not .rodata)
+arm-none-eabi-objdump -t lab12_uart_driver_abstraction.elf | grep uart_ops
+# Output: 00000284 l     O .text    0000000c uart_ops
 ```
 
 ## Real-World Applications
@@ -200,4 +221,6 @@ This pattern is used in:
 ✅ Abstraction overhead is minimal with proper design  
 ✅ Professional embedded code balances abstraction with efficiency  
 ✅ This architecture scales from microcontrollers to complex systems  
+✅ **Startup sequence matters**: `.data` must be copied before C code runs  
+✅ **Link-time vs runtime**: Initialized globals are resolved at link time, only copied at startup  
 
