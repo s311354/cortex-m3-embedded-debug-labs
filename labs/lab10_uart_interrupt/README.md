@@ -137,7 +137,7 @@ Expected output:
 Check that UART0_Handler is in the vector table at position 16 (offset 0x40):
 
 ```bash
-arm-none-eabi-objdump -s -j .isr_vector lab10_uart_interrupt.elf
+arm-none-eabi-objdump -s -j .text lab10_uart_interrupt.elf
 ```
 
 Look for offset 0x40 (IRQ0):

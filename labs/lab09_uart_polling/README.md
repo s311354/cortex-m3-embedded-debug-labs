@@ -120,30 +120,7 @@ Set breakpoint in `uart_putc()`:
 
 Step through the `while` loop and observe how it spins until `STATE.TX_FULL` clears.
 
-### 3. Measure Polling Overhead
-
-Count instructions executed in polling loop:
-
-```gdb
-(gdb) b uart_putc
-(gdb) commands
-> silent
-> set $count = 0
-> c
-> end
-(gdb) b uart.c:18
-(gdb) commands
-> silent
-> set $count = $count + 1
-> c
-> end
-(gdb) c
-(gdb) p $count
-```
-
-This shows how many times the CPU checked the status bit—all wasted cycles.
-
-### 4. Inspect Disassembly
+### 3. Inspect Disassembly
 
 ```bash
 arm-none-eabi-objdump -d lab09_uart_polling.elf | less
