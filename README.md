@@ -82,7 +82,9 @@ cortex-m3-embedded-debug-labs/
 │   ├── lab09_uart_polling/
 │   ├── lab10_uart_interrupt/
 │   ├── lab11_uart_ringbuffer/
-└─  └── lab12_uart_driver_abstraction/
+│   ├── lab12_uart_driver_abstraction/
+│   ├── lab13_i2c_transaction/
+└─  └── lab14_mps2_mmio_i2c/
 ```
 
 # Quick Start with Tmux + Kiro CLI

@@ -1,0 +1,38 @@
+# Object files
+*.o
+*.obj
+
+# Binary files
+*.bin
+*.hex
+
+# Executable and Linkable Format
+*.elf
+
+# Debug files
+*.map
+*.lst
+*.lss
+*.sym
+
+# Disassembly files
+*.dis
+*.disasm
+
+# Dependency files
+*.d
+
+# Archive files
+*.a
+
+# Editor and IDE files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
