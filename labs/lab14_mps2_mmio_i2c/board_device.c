@@ -1,9 +1,13 @@
 #include "board_device.h"
 
 
+/*
+ * 1 iteration ~ 5 CPU cycles. CPU = 25 MHZ, 1 us = 25 cycles. 
+ * I2C clock = 10 us, delay_cycles ~ 10 / 2 * 25 / 5 = 25 iterations
+ */
 struct mps2_i2c_bus g_shield0_i2c_bus = {
     .regs = MPS2_SHIELD0_I2C,
-    .delay_cycles = 10U,
+    .delay_cycles = 25U,
     .timeout_cycles = 10000U,
 
 #if defined(LAB14_REAL_EEPROM)
