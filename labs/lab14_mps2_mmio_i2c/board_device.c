@@ -2,12 +2,13 @@
 
 
 /*
- * 1 iteration ~ 5 CPU cycles. CPU = 25 MHZ, 1 us = 25 cycles. 
- * I2C clock = 10 us, delay_cycles ~ 10 / 2 * 25 / 5 = 25 iterations
+ * Run on (4 x 48 MHz CPUs)
+ * 1 iteration ~ 5 CPU cycles. CPU = 48 MHZ
+ * I2C clock = 10 us, delay_cycles ~ 10 / 2 * 48 / 5 = 48 iterations
  */
 struct mps2_i2c_bus g_shield0_i2c_bus = {
     .regs = MPS2_SHIELD0_I2C,
-    .delay_cycles = 25U,
+    .delay_cycles = 48U,
     .timeout_cycles = 10000U,
 
 #if defined(LAB14_REAL_EEPROM)
