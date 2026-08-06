@@ -25,7 +25,13 @@ LABS := \
 
 LAB_DIR := labs
 
-.PHONY: all clean run debug gdb dump help list $(LABS)
+.PHONY: all clean run debug gdb dump doctor test help list $(LABS)
+
+doctor:
+	@CORTEX_ROOT="${CORTEX_ROOT}" ./scripts/doctor.sh
+
+test:
+	@sh tests/test-doctor.sh
 
 # ===============================
 # Build every lab
@@ -93,6 +99,8 @@ help:
 	@echo "Cortex-M3 Embedded Debug Labs"
 	@echo ""
 	@echo "Usage:"
+	@echo " make doctor     Check toolchain and external dependencies"
+	@echo " make test       Run repository unit tests"
 	@echo " make            Build all labs"
 	@echo " make all        Build all labs"
 	@echo " make clean      Clean all labs"
