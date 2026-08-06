@@ -21,7 +21,8 @@ LABS := \
        lab11_uart_ringbuffer \
        lab12_uart_driver_abstraction \
        lab13_i2c_transaction \
-       lab14_mps2_mmio_i2c
+       lab14_mps2_mmio_i2c \
+       lab15_spi_transaction
 
 LAB_DIR := labs
 

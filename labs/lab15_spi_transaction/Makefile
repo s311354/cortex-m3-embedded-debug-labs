@@ -1,0 +1,30 @@
+TARGET := lab14_spi_transaction
+PLATFORM := runtime
+
+COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)
+
+CORTEX_ROOT := ../../../ARM_M3_design
+CMSIS_MPS2 := $(CORTEX_ROOT)/m3designstart/software/cmsis/Device/ARM/CM3DS/Include
+CMSIS_INC := $(CORTEX_ROOT)/m3designstart/software/cmsis/CMSIS/Include
+
+LINKER_SCRIPT := $(COMMON)/linker.ld
+
+SRC := \
+main.c \
+runtime.c \
+simulated_spi_device.c \
+spi_bitbang.c \
+startup.s
+
+VPATH += $(COMMON)
+
+include $(COMMON)/Makefile.common
+
+
+
+
+
+
+
+
+
