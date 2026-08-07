@@ -2,14 +2,16 @@
 
 ## Overview
 
-This lab demonstrates **software I2C (bit-banging)** implementation on the ARM Cortex-M3. Instead of using dedicated I2C hardware, the code manually controls GPIO pins to implement the I2C protocol timing and signaling. This technique is valuable when hardware I2C is unavailable, already in use, or when debugging I2C bus issues.
+This lab demonstrates **software I2C (bit-banging)** implementation on the ARM Cortex-M3. Instead of using a full-featured I2C hardware controller, the code manually controls the I2C bus lines (SCL and SDA) to implement the I2C protocol timing and signaling in software. This technique is valuable when full I2C hardware is unavailable, already in use, or when debugging I2C bus issues.
+
+The MPS2 platform provides a minimal I2C peripheral (`CM3DS_MPS2_I2C`) that exposes only basic pin control through two registers. The peripheral has two dedicated pins (SCL and SDA) for I2C communication with the on-board audio codec. Unlike full-featured I2C hardware controllers found in production microcontrollers, this peripheral provides no automatic protocol generation - all I2C logic (START/STOP conditions, byte transmission, ACK/NACK) must be implemented in software.
 
 ## Learning Objectives
 
 - Understand I2C protocol fundamentals (START, STOP, ACK/NACK)
-- Implement software-based I2C (bit-banging) using GPIO
+- Implement software-based I2C (bit-banging) using a minimal pin controller
 - Learn precise timing control with software delays
-- Understand memory-mapped I/O for GPIO control
+- Understand memory-mapped I/O for peripheral control
 - Design transaction-based peripheral driver APIs
 - Use compiler attributes for optimization control
 - Debug communication protocols at the bit level
@@ -18,38 +20,40 @@ This lab demonstrates **software I2C (bit-banging)** implementation on the ARM C
 
 ### 1. Memory-Mapped I/O (MMIO)
 
-GPIO pins are controlled through memory-mapped peripheral registers:
+The MPS2 I2C peripheral provides a minimal register interface with direct pin control for software I2C bit-banging:
 
 ```c
-// Set SCL high
-CM3DS_MPS2_I2C->CONTROL = CM3DS_MPS2_I2C_SCL_Msk;
+// MPS2 I2C peripheral structure (from CM3DS_MPS2.h)
+typedef struct {
+    __IO uint32_t  CONTROL;   // Offset: 0x000 - Read state / Write to set bits
+    __IO uint32_t  CONTROLC;  // Offset: 0x004 - Write to clear bits (atomic)
+} CM3DS_MPS2_I2C_TypeDef;
 
-// Set SCL low
-CM3DS_MPS2_I2C->CONTROLC = CM3DS_MPS2_I2C_SCL_Msk;
+// Bit mask definitions
+#define CM3DS_MPS2_I2C_SCL_Pos  0
+#define CM3DS_MPS2_I2C_SCL_Msk  (1UL << CM3DS_MPS2_I2C_SCL_Pos)  // 0x00000001
 
-// Read SDA state
-int sda = (CM3DS_MPS2_I2C->CONTROL & CM3DS_MPS2_I2C_SDA_Msk) != 0U;
+#define CM3DS_MPS2_I2C_SDA_Pos  1
+#define CM3DS_MPS2_I2C_SDA_Msk  (1UL << CM3DS_MPS2_I2C_SDA_Pos)  // 0x00000002
+
+// Peripheral instance mapped to Audio Configuration base address
+#define CM3DS_MPS2_I2C  ((CM3DS_MPS2_I2C_TypeDef *) 0x40023000UL)
 ```
 
 **Key Points**:
-- Peripherals mapped to fixed addresses in ARM memory map
-- Writing to `CONTROL` sets bits (output high)
-- Writing to `CONTROLC` clears bits (output low)
+- Peripheral mapped to address `0x40023000` (AUDIOCFG_BASE)
+- Used for I2C communication with audio codec on MPS2 board
+- Only 2 registers: `CONTROL` and `CONTROLC`
+- Writing to `CONTROL` sets bits HIGH (outputs 1)
+- Writing to `CONTROLC` clears bits LOW (outputs 0) - atomic operation
 - Reading `CONTROL` returns current pin state
-- Bit masks isolate specific pins
+- Bit 0: SCL (I2C Clock Line)
+- Bit 1: SDA (I2C Data Line)
+- **Not a full I2C hardware controller** - requires software protocol implementation
 
 ### 2. Software Timing with Volatile
 
 Creating precise delays without hardware timers:
-
-```c
-static void i2c_delay(void) {
-    volatile uint32_t i;
-    for (i = 0U; i < 100U; ++i) {
-        __asm volatile ("nop");
-    }
-}
-```
 
 **Why This Works**:
 - `volatile` prevents compiler optimization of the loop
@@ -137,7 +141,7 @@ START → [0xA0] → ACK → [0x10] → ACK → [0xAB] → ACK → STOP
 (gdb) next
 (gdb) step
 
-# Inspect GPIO state
+# Inspect I2C peripheral state
 (gdb) print/x CM3DS_MPS2_I2C->CONTROL
 $1 = 0x3
 
@@ -154,21 +158,36 @@ $3 = 0    # I2C_OK
 
 ## Key Observations
 
-### GPIO Control Registers
+### MPS2 I2C Peripheral Registers
 
-**CONTROL Register** (Set bits):
-```c
-CM3DS_MPS2_I2C->CONTROL = CM3DS_MPS2_I2C_SCL_Msk;  // SCL = 1
-CM3DS_MPS2_I2C->CONTROL = CM3DS_MPS2_I2C_SDA_Msk;  // SDA = 1
-```
+The peripheral has only two 32-bit registers:
 
-**CONTROLC Register** (Clear bits):
-```c
-CM3DS_MPS2_I2C->CONTROLC = CM3DS_MPS2_I2C_SCL_Msk;  // SCL = 0
-CM3DS_MPS2_I2C->CONTROLC = CM3DS_MPS2_I2C_SDA_Msk;  // SDA = 0
-```
+**CONTROL Register** (Offset: 0x000 - Read/Write):
+- **Write**: Sets specified bits HIGH (logic 1)
+- **Read**: Returns current pin state
 
-This is a common ARM peripheral pattern for atomic bit manipulation.
+**CONTROLC Register** (Offset: 0x004 - Write-Only):
+- **Write**: Clears specified bits LOW (logic 0)
+- Atomic operation - no read-modify-write needed
+
+**Why This Register Design?**
+
+This **Set/Clear register pattern** provides simple, atomic bit manipulation:
+- **Atomic operations**: Single instruction, no race conditions
+- **Interrupt-safe**: No need for critical sections or read-modify-write
+- **Minimal hardware**: Reduces FPGA resource usage on MPS2 platform
+- **Simple interface**: Just set bits HIGH or clear bits LOW
+
+**Register State Table**:
+
+| Operation | Register | Value | Bit Pattern | Result |
+|-----------|----------|-------|-------------|--------|
+| SCL HIGH | CONTROL | 0x01 | `0b00000001` | SCL=1 |
+| SDA HIGH | CONTROL | 0x02 | `0b00000010` | SDA=1 |
+| Both HIGH | CONTROL | 0x03 | `0b00000011` | SCL=1, SDA=1 |
+| SCL LOW | CONTROLC | 0x01 | `0b00000001` | SCL=0 |
+| SDA LOW | CONTROLC | 0x02 | `0b00000010` | SDA=0 |
+| Both LOW | CONTROLC | 0x03 | `0b00000011` | SCL=0, SDA=0 |
 
 ### Simulated ACK Mode
 
@@ -177,10 +196,29 @@ This is a common ARM peripheral pattern for atomic bit manipulation.
 - Allows testing protocol logic
 - Set to `0` for real hardware debugging
 
+### What This Peripheral Is (and Isn't)
+
+**CM3DS_MPS2_I2C is:**
+- ✓ A minimal 2-pin controller for I2C bit-banging
+- ✓ Mapped to audio configuration address space (0x40023000)
+- ✓ Used for configuring the audio codec on MPS2 board
+- ✓ Provides atomic set/clear operations
+- ✓ Suitable for low-speed control interfaces
+
+**CM3DS_MPS2_I2C is NOT:**
+- ❌ A full I2C hardware controller
+- ❌ Capable of automatic protocol generation
+- ❌ Equipped with shift registers or ACK detection
+- ❌ Able to generate interrupts
+- ❌ Compatible with DMA
+- ❌ General-purpose GPIO (pins are dedicated for I2C)
+
+This design is typical for **FPGA-based prototyping platforms** where simplified hardware reduces resource usage and provides educational value by exposing protocol implementation details.
+
 ## Software I2C Advantages
 
-✓ **Flexible pin assignment**: Use any GPIO pins  
-✓ **Multiple I2C buses**: Not limited by hardware peripherals  
+✓ **Flexible implementation**: Can adapt protocol timing and behavior  
+✓ **Multiple I2C buses**: Not limited by hardware peripheral count  
 ✓ **Bus recovery**: Can manipulate clock to recover stuck devices  
 ✓ **Custom timing**: Adapt to non-standard devices  
 ✓ **Debug visibility**: Step through protocol at bit level
@@ -202,26 +240,9 @@ This is a common ARM peripheral pattern for atomic bit manipulation.
 - I2C bus recovery and diagnostics
 - Educational purposes
 
-**Prefer Hardware I2C When**:
-- High-speed transfers needed
-- Power efficiency critical
-- CPU bandwidth limited
-- Multiple concurrent peripherals
-
-## Comparison: Software vs Hardware I2C
-
-| Aspect | Software (Bit-Bang) | Hardware I2C |
-|--------|-------------------|--------------|
-| Speed | ~10-100 kHz | Up to 400 kHz (Fast Mode) |
-| CPU Usage | 100% during transfer | Minimal (interrupt/DMA) |
-| Flexibility | Any GPIO pins | Fixed pins |
-| Timing | Software delays | Hardware timing |
-| Debugging | Step through in GDB | Harder to trace |
-| Multiple Buses | Limited by GPIO | Fixed by hardware |
-
 ## Key Takeaways
 
-1. **GPIO as Protocol Interface**: Any digital protocol can be implemented in software
+1. **Minimal Peripheral Interface**: MPS2_I2C provides only basic pin control, not full I2C hardware
 2. **Timing Precision**: `volatile` and inline assembly create predictable delays
 3. **Protocol State Machine**: I2C requires careful sequencing of signal transitions
 4. **Transaction Abstraction**: Message-based APIs separate protocol from application
@@ -233,5 +254,6 @@ This is a common ARM peripheral pattern for atomic bit manipulation.
 
 - [I2C-bus Specification (NXP)](https://www.nxp.com/docs/en/user-guide/UM10204.pdf)
 - [ARM Cortex-M3 Technical Reference Manual](https://developer.arm.com/documentation/ddi0337/latest/)
-- [GPIO Programming on ARM](https://developer.arm.com/documentation/)
+- [ARM Cortex-M3 DesignStart - CM3DS_MPS2.h](../ARM_M3_design/m3designstart/software/cmsis/Device/ARM/CM3DS/Include/CM3DS_MPS2.h)
 - [Linux Kernel I2C API](https://www.kernel.org/doc/html/latest/i2c/)
+- [CMSIS Core Documentation](https://arm-software.github.io/CMSIS_5/Core/html/index.html)

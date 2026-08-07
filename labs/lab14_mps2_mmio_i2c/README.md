@@ -4,8 +4,6 @@
 
 This lab demonstrates a **production-quality I2C driver stack** for communicating with an EEPROM device on the ARM Cortex-M3 MPS2 platform. Unlike Lab 13's generic bit-banging approach, this lab implements a complete three-layer driver architecture with hardware-specific MMIO register access, transaction-based I2C bus driver, and high-level EEPROM device abstraction.
 
-This represents the culmination of all previous labs, combining MMIO, protocol implementation, driver architecture, state machine debugging, and production error handling patterns into a real-world embedded system.
-
 ## Learning Objectives
 
 - Implement production I2C driver with software bit-banging using MPS2 I2C peripheral

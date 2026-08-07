@@ -3,6 +3,20 @@
 
 #include "i2c_message.h"
 
+/**
+ * @file i2c_message.c
+ * @brief Software I2C implementation for CM3DS_MPS2 minimal I2C controller
+ * 
+ * Hardware Details:
+ * - Peripheral: CM3DS_MPS2_I2C @ 0x40023000 (AUDIOCFG_BASE)
+ * - Pins: Dedicated I2C pins (SCL=bit0, SDA=bit1)
+ * - Registers: CONTROL (set bits) and CONTROLC (clear bits) for atomic operations
+ * - Protocol: No automatic generation - software bit-banging required
+ * 
+ * Note: This is a minimal I2C controller for educational purposes and FPGA
+ * resource efficiency. Production systems typically use full I2C hardware.
+ */
+
 #define I2C_SIMULATE_ACK 1
 
 static void i2c_delay(void) {
@@ -13,30 +27,62 @@ static void i2c_delay(void) {
     }
 }
 
+/**
+ * @brief Set SCL line HIGH
+ * 
+ * Writes to CONTROL register to set bit 0 (SCL).
+ * CONTROL register behavior: Writing 1 to a bit sets it HIGH.
+ */
 static void i2c_scl_high(void) {
     CM3DS_MPS2_I2C->CONTROL = CM3DS_MPS2_I2C_SCL_Msk;
 
     i2c_delay();
 }
 
+/**
+ * @brief Set SCL line LOW
+ * 
+ * Writes to CONTROLC register to clear bit 0 (SCL).
+ * CONTROLC register provides atomic bit clearing operation.
+ */
 static void i2c_scl_low(void) {
     CM3DS_MPS2_I2C->CONTROLC = CM3DS_MPS2_I2C_SCL_Msk;
 
     i2c_delay();
 }
 
+/**
+ * @brief Set SDA line HIGH (or release for input)
+ * 
+ * Writes to CONTROL register to set bit 1 (SDA).
+ * When used before reading ACK, this releases the line
+ * allowing the slave device to pull it LOW (with external pull-ups).
+ */
 static void i2c_sda_high(void) {
     CM3DS_MPS2_I2C->CONTROL = CM3DS_MPS2_I2C_SDA_Msk;
 
     i2c_delay();
 }
 
+/**
+ * @brief Set SDA line LOW
+ * 
+ * Writes to CONTROLC register to clear bit 1 (SDA).
+ */
 static void i2c_sda_low(void) {
     CM3DS_MPS2_I2C->CONTROLC = CM3DS_MPS2_I2C_SDA_Msk;
 
     i2c_delay();
 }
 
+/**
+ * @brief Read current SDA line state
+ * 
+ * Used primarily for ACK/NACK detection after byte transmission.
+ * Reads the CONTROL register and checks bit 1 (SDA).
+ * 
+ * @return 1 if SDA is HIGH (NACK), 0 if LOW (ACK)
+ */
 __attribute__((unused))
 static int i2c_sda_read(void) {
     return ((CM3DS_MPS2_I2C->CONTROL & CM3DS_MPS2_I2C_SDA_Msk) != 0U);
