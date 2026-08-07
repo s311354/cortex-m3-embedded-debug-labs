@@ -21,7 +21,7 @@ Topics include:
 - Privilege Management
 - MSP / PSP
 - EXC_RETURN
-- Low-level Dubugging
+- Low-level Debugging
 - GDB
 - objdump
 - readelf
@@ -74,9 +74,9 @@ cortex-m3-embedded-debug-labs/
 │   ├── lab01_core_registers/
 │   ├── lab02_interrupt_control/
 │   ├── lab03_svc_exception/
-│   ├── lab04_exception_stack/
+│   ├── lab04_stack_frame/
 │   ├── lab05_privilege_stack/
-│   ├── lab06_runtime/
+│   ├── lab06_startup_runtime/
 │   ├── lab07_optimization/
 │   ├── lab08_uart_register/
 │   ├── lab09_uart_polling/
@@ -84,7 +84,9 @@ cortex-m3-embedded-debug-labs/
 │   ├── lab11_uart_ringbuffer/
 │   ├── lab12_uart_driver_abstraction/
 │   ├── lab13_i2c_transaction/
-└─  └── lab14_mps2_mmio_i2c/
+│   ├── lab14_mps2_mmio_i2c/
+│   ├── lab15_spi_transaction/
+└─  └── lab16_hardware_spi_controller/
 ```
 
 # Quick Start with Tmux + Kiro CLI
