@@ -22,7 +22,8 @@ LABS := \
        lab12_uart_driver_abstraction \
        lab13_i2c_transaction \
        lab14_mps2_mmio_i2c \
-       lab15_spi_transaction
+       lab15_spi_transaction \
+       lab16_hardware_spi_controller
 
 LAB_DIR := labs
 
