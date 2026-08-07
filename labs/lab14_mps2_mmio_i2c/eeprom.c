@@ -16,7 +16,9 @@ static int build_memory_address(
         return EEPROM_ERR_ARGUMENT;
     }
 
+    // 1-byte address
     if (device->address_width == 1U) {
+	// address too larger
         if (memory_addr > 0x00FFU)
 	    return EEPROM_ERR_ARGUMENT;
 
@@ -25,9 +27,10 @@ static int build_memory_address(
 	return EEPROM_OK;
     }
 
+    // 2-byte address
     if (device->address_width == 2U) {
-        buffer[0] = (uint8_t)(memory_addr >> 8U);
-	buffer[1] = (uint8_t)memory_addr;
+        buffer[0] = (uint8_t)(memory_addr >> 8U); // High byte
+	buffer[1] = (uint8_t)memory_addr; // Low byte
 
 	*address_length = 2U;
 	return EEPROM_OK;
@@ -44,6 +47,7 @@ static int write_crosses_page(
 
     page_offset = (size_t)memory_addr % device->page_size;
 
+    // check if write extends beyond current page
     return ((page_offset + length) > device->page_size);
 }
 
@@ -69,24 +73,29 @@ int eeprom_write(
         return EEPROM_ERR_ARGUMENT;
     }
 
+    // Check page boundary
     if (write_crosses_page(device, memory_addr, length) != 0) {
         return EEPROM_ERR_PAGE_BOUNDARY;
     }
 
+    // Build address bytes
     result = build_memory_address(device, memory_addr, tx_buffer, &address_length);
     
     if (result != EEPROM_OK)
         return result;
 
+    // Append data after address bytes
     for (size_t index = 0U; index < length; ++index) {
        tx_buffer[address_length + index] = data[index];
     }
 
+    // Build I2C message
     message.buf = tx_buffer;
     message.len = (uint32_t)(address_length + length);
     message.flags = MPS2_I2C_MSG_WRITE | MPS2_I2C_MSG_STOP;
 
-    result = mps2_i2c_transfer(device->bus, device->target_addr, &message, 1U);
+    // Execute I2C transaction
+    result = mps2_i2c_transfer(device->bus, &message, 1U, device->target_addr);
 
     if (result != MPS2_I2C_OK) {
         return EEPROM_ERR_TRANSFER;
@@ -95,6 +104,7 @@ int eeprom_write(
     if (device->bus->simulate_bus != 0U)
 	return EEPROM_OK;
 
+    // Wait for EERPOM internal write cycle to complete
     return eeprom_wait_ready(device);
 
 }
@@ -125,6 +135,7 @@ int eeprom_read(
         return EEPROM_ERR_ARGUMENT;
     }
 
+    // Build address bytes
     result = build_memory_address(device, memory_addr, address_buffer, &address_length);
 
     if (result != EEPROM_OK)
@@ -142,17 +153,21 @@ int eeprom_read(
      * NACK
      * STOP
      */
+
+     // Message 1: Write memory address
      messages[0].buf = address_buffer;
      messages[0].len = address_length;
      messages[0].flags = MPS2_I2C_MSG_WRITE;
 
+     // Message 2: Read data (with RESTART and STOP)
      messages[1].buf = data;
      messages[1].len = length;
      messages[1].flags = MPS2_I2C_MSG_READ |
 	                 MPS2_I2C_MSG_RESTART |
 			 MPS2_I2C_MSG_STOP;
 
-     result = mps2_i2c_transfer(device->bus, device->target_addr, messages, 2U);
+     // Execute combined transaction
+     result = mps2_i2c_transfer(device->bus, messages, 2U, device->target_addr);
 
      return (result == MPS2_I2C_OK) ? EEPROM_OK : EEPROM_ERR_TRANSFER;
 }
@@ -175,6 +190,7 @@ int eeprom_wait_ready(const struct eeprom_device *device) {
     }
 
     for (uint32_t attempt = 0U; attempt < device->ready_poll_limit; ++attempt) {
+	// Probe: Send address and check for ACK
         result = mps2_i2c_probe(device->bus, device->target_addr);
     
     
@@ -185,6 +201,8 @@ int eeprom_wait_ready(const struct eeprom_device *device) {
 	if (result != MPS2_I2C_ERR_NACK) {
 	    return EEPROM_ERR_TRANSFER;
 	}
+
+	// NACK = skill busy, keep polling
     }
 
     return EEPROM_ERR_NOT_READY;

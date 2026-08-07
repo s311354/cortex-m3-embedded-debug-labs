@@ -46,6 +46,7 @@ int main(void) {
 
     g_lab14_stage = LAB14_STAGE_BOARD_INIT;
     lab14_debug_chechpoint();
+
     g_board_init_result = board_devices_init();
 
     if (g_board_init_result != MPS2_I2C_OK) {

@@ -8,7 +8,7 @@ This represents the culmination of all previous labs, combining MMIO, protocol i
 
 ## Learning Objectives
 
-- Implement production I2C driver with bit-banging using MPS2 GPIO hardware
+- Implement production I2C driver with software bit-banging using MPS2 I2C peripheral
 - Master three-layer driver architecture (Application → Device → Bus → Hardware)
 - Understand MMIO register patterns (SET/CLEAR registers for atomic operations)
 - Design transaction-based bus APIs supporting complex multi-message operations
@@ -45,11 +45,11 @@ This represents the culmination of all previous labs, combining MMIO, protocol i
 │  - Byte read/write with ACK/NACK        │
 │  - Bus recovery                          │
 └──────────────┬──────────────────────────┘
-               │ GPIO bit manipulation
+               │ I2C peripheral SDA/SCL bit control
                ▼
 ┌─────────────────────────────────────────┐
-│  Hardware Layer (MPS2_I2C registers)    │
-│  - CONTROL (set bits)                    │
+│  Hardware Layer (MPS2 I2C Peripheral)   │
+│  - CONTROL (read state / set bits)       │
 │  - CONTROLC (clear bits)                 │
 │  - CONTROLS (set with mask)              │
 └─────────────────────────────────────────┘
@@ -58,29 +58,18 @@ This represents the culmination of all previous labs, combining MMIO, protocol i
 
 ## Cortex-M3 Concepts Covered
 
-### 1. MPS2 GPIO MMIO Register Pattern
+### 1. MPS2 I2C Peripheral MMIO Pattern
 
-The MPS2 platform uses a specific MMIO pattern for atomic bit manipulation:
+The MPS2 platform provides a minimalist I2C peripheral designed for software bit-banging. Unlike full-featured I2C hardware controllers, this peripheral only exposes SDA and SCL line control through a simple MMIO pattern:
 
 ```c
-// Hardware registers for GPIO control
+// MPS2 I2C peripheral registers (from ARM SMM_MPS2.h)
+// This is a dedicated I2C peripheral, but requires software protocol implementation
 struct MPS2_I2C_TypeDef {
     uint32_t CONTROL;   // Read current state, Write to set bits
-    uint32_t CONTROLC;  // Write to clear bits
-    uint32_t CONTROLS;  // Write with mask to set bits
+    uint32_t CONTROLC;  // Write to clear bits (atomic)
+    uint32_t CONTROLS;  // Write with mask to set bits (atomic)
 };
-```
-
-**Usage Pattern**:
-```c
-// Set SDA high (atomic operation)
-bus->regs->CONTROLS = MPS2_I2C_SDA_MASK;
-
-// Drive SCL low (atomic operation)
-bus->regs->CONTROLC = MPS2_I2C_SCL_MASK;
-
-// Read current pin state
-int scl_state = (bus->regs->CONTROL & MPS2_I2C_SCL_MASK) != 0U;
 ```
 
 **Why This Pattern**:
@@ -88,6 +77,12 @@ int scl_state = (bus->regs->CONTROL & MPS2_I2C_SCL_MASK) != 0U;
 - Each register write is a single atomic store instruction
 - Common pattern in ARM peripheral design (similar to GPIO BSRR in STM32)
 - No need for critical sections or interrupt disabling
+
+This design is typical for **FPGA-based prototyping platforms** where:
+- Simplified hardware reduces FPGA resource usage
+- Software implementation provides protocol flexibility
+- Educational value demonstrates I2C timing at the bit level
+- Sufficient for low-speed configuration interfaces (audio codecs, EEPROMs)
 
 ### 2. Software Timing for I2C Protocol
 
@@ -119,42 +114,14 @@ Account for function overhead: delay_cycles = 10-100 typical
 Complete I2C master protocol implementation:
 
 #### START Condition
-```c
-static int generate_start(struct mps2_i2c_bus *bus) {
-    sda_release(bus);           // SDA high
-    wait_scl_high(bus);         // SCL high
-    sda_drive_low(bus);         // SDA: high → low (START)
-    scl_drive_low(bus);         // Prepare for data
-    return MPS2_I2C_OK;
-}
-```
 
 **I2C Rule**: START is SDA falling edge while SCL is high.
 
 #### STOP Condition
-```c
-static int generate_stop(struct mps2_i2c_bus *bus) {
-    sda_drive_low(bus);         // SDA low
-    wait_scl_high(bus);         // SCL high
-    sda_release(bus);           // SDA: low → high (STOP)
-    return MPS2_I2C_OK;
-}
-```
 
 **I2C Rule**: STOP is SDA rising edge while SCL is high.
 
 #### Byte Transmission
-```c
-static int write_byte(struct mps2_i2c_bus *bus, uint8_t value) {
-    // Send 8 data bits (MSB first)
-    for (uint8_t bit = 0U; bit < 8U; ++bit) {
-        write_bit(bus, (value & 0x80U) != 0U);
-        value <<= 1U;
-    }
-    // Receive ACK on 9th clock
-    return receive_ack(bus);
-}
-```
 
 **Protocol Details**:
 - Data changes only when SCL is LOW
@@ -163,17 +130,6 @@ static int write_byte(struct mps2_i2c_bus *bus, uint8_t value) {
 - 9th clock cycle for slave acknowledgment
 
 #### Clock Stretching
-```c
-static int wait_scl_high(struct mps2_i2c_bus *bus) {
-    scl_release(bus);  // Release SCL
-    // Wait for slave to release SCL (clock stretching)
-    for (uint32_t timeout = 0U; timeout < bus->timeout_cycles; ++timeout) {
-        if (scl_is_high(bus) != 0) 
-            return MPS2_I2C_OK;
-    }
-    return MPS2_I2C_ERR_TIMEOUT;
-}
-```
 
 **I2C Clock Stretching**: Slave can hold SCL low to pause master until ready.
 
@@ -206,28 +162,6 @@ int mps2_i2c_transfer(struct mps2_i2c_bus *bus,
 - Explicit control over START/STOP conditions
 - Similar to Linux kernel `i2c_transfer()` API
 - Reduces code duplication
-
-**Example - Simple Write**:
-```c
-uint8_t data[] = {0x10, 0xAB};
-struct mps2_i2c_msg msg = {
-    .buf = data,
-    .len = 2,
-    .flags = MPS2_I2C_MSG_WRITE | MPS2_I2C_MSG_STOP
-};
-mps2_i2c_transfer(bus, 0x50, &msg, 1);
-```
-
-**Example - Combined Write-Read** (EEPROM random read):
-```c
-struct mps2_i2c_msg msgs[2] = {
-    {.buf = addr_buf, .len = 1, .flags = MPS2_I2C_MSG_WRITE},
-    {.buf = data_buf, .len = 8, .flags = MPS2_I2C_MSG_READ | 
-                                         MPS2_I2C_MSG_RESTART | 
-                                         MPS2_I2C_MSG_STOP}
-};
-mps2_i2c_transfer(bus, 0x50, msgs, 2);
-```
 
 **Bus Sequence**:
 ```
@@ -267,39 +201,9 @@ START → [0xA0] → [0x12] → [0x34] → [data] → STOP
       Slave Addr  Addr Hi  Addr Lo  Data
 ```
 
-Implementation:
-```c
-static int build_memory_address(
-    const struct eeprom_device *device,
-    uint16_t memory_addr,
-    uint8_t *buffer,
-    size_t *address_length) {
-    
-    if (device->address_width == 1U) {
-        buffer[0] = (uint8_t)memory_addr;
-        *address_length = 1U;
-    } else if (device->address_width == 2U) {
-        buffer[0] = (uint8_t)(memory_addr >> 8U);   // High byte
-        buffer[1] = (uint8_t)memory_addr;            // Low byte
-        *address_length = 2U;
-    }
-}
-```
-
 #### Page Boundary Management
 
 EEPROMs require writes to stay within page boundaries:
-
-```c
-static int write_crosses_page(
-    const struct eeprom_device *device,
-    uint16_t memory_addr,
-    size_t length) {
-    
-    size_t page_offset = (size_t)memory_addr % device->page_size;
-    return ((page_offset + length) > device->page_size);
-}
-```
 
 **Why This Matters**:
 - EEPROM page size: 8, 16, 32, or 64 bytes (device-dependent)
@@ -312,34 +216,6 @@ static int write_crosses_page(
 ✓ Good: Write 4 bytes at address 0x04 (stays in page 0x00-0x07)
 ✗ Bad:  Write 4 bytes at address 0x06 (crosses to next page)
 ```
-
-#### Write Polling (ACK Polling)
-
-After writing, EEPROM is busy and won't ACK until write completes:
-
-```c
-int eeprom_wait_ready(const struct eeprom_device *device) {
-    for (uint32_t attempt = 0U; attempt < device->ready_poll_limit; ++attempt) {
-        result = mps2_i2c_probe(device->bus, device->target_addr);
-        if (result == MPS2_I2C_OK)
-            return EEPROM_OK;  // Device ACKed, ready
-    }
-    return EEPROM_ERR_NOT_READY;  // Timeout
-}
-```
-
-**I2C Probe**:
-```c
-int mps2_i2c_probe(struct mps2_i2c_bus* bus, uint8_t target_addr) {
-    generate_start(bus);
-    result = send_address(bus, target_addr, 0);  // Write address
-    generate_stop(bus);
-    return result;  // MPS2_I2C_OK if ACK, MPS2_I2C_ERR_NACK if busy
-}
-```
-
-**Timing**: EEPROM write cycle time typically 5-10 ms.
-
 
 ### 6. State Machine Debugging Pattern
 
@@ -356,39 +232,11 @@ enum lab14_stage {
     LAB14_STAGE_ERROR
 };
 
-volatile enum lab14_stage g_lab14_stage;
-volatile int g_board_init_result;
-volatile int g_eeprom_write_result;
-volatile int g_eeprom_read_result;
-volatile uint8_t g_test_write_value;
-volatile uint8_t g_eeprom_read_value;
-```
-
 **Why Volatile**:
 - Variables inspected by GDB must be `volatile`
 - Prevents compiler optimization that removes "unused" variables
 - Ensures memory location exists for debugger to read
 - Critical for debugging embedded state machines
-
-**Debug Checkpoints**:
-```c
-__attribute__((noinline))
-void lab14_debug_checkpoint(void) {
-    __asm volatile ("nop");
-}
-
-int main(void) {
-    g_lab14_stage = LAB14_STAGE_BOARD_INIT;
-    lab14_debug_checkpoint();  // Breakpoint location
-    
-    result = board_devices_init();
-    
-    if (result != MPS2_I2C_OK) {
-        g_lab14_stage = LAB14_STAGE_ERROR;
-        lab14_debug_checkpoint();  // Error breakpoint
-    }
-}
-```
 
 **GDB Usage**:
 ```gdb
@@ -445,26 +293,6 @@ enum eeprom_status {
 
 When I2C bus is stuck (slave holding SDA low), recovery procedure:
 
-```c
-int mps2_i2c_recover_bus(struct mps2_i2c_bus *bus) {
-    sda_release(bus);
-    
-    // Send up to 9 clock pulses to unstick slave
-    for (uint8_t pulse = 0U; pulse < 9U; ++pulse) {
-        if (sda_is_high(bus) != 0)
-            break;  // Bus recovered
-        
-        scl_drive_low(bus);
-        wait_scl_high(bus);
-    }
-    
-    // Send STOP to reset slave state machine
-    generate_stop(bus);
-    
-    return (bus_is_idle(bus) != 0) ? MPS2_I2C_OK : MPS2_I2C_ERR_BUS_BUSY;
-}
-```
-
 **Why 9 Clocks**:
 - I2C byte = 8 data bits + 1 ACK bit
 - Slave might be mid-byte when bus hung
@@ -475,31 +303,6 @@ int mps2_i2c_recover_bus(struct mps2_i2c_bus *bus) {
 
 Defensive programming at every layer:
 
-```c
-int mps2_i2c_transfer(struct mps2_i2c_bus *bus, uint8_t target_addr, 
-                      struct mps2_i2c_msg *messages, size_t num_messages) {
-    // Validate bus structure
-    if ((bus == NULL) || (bus->regs == NULL))
-        return MPS2_I2C_ERR_ARGUMENT;
-    
-    // Validate messages
-    if ((messages == NULL) || (num_messages == 0U))
-        return MPS2_I2C_ERR_ARGUMENT;
-    
-    // Validate address (7-bit I2C)
-    if (target_addr > 0x7FU)
-        return MPS2_I2C_ERR_ADDRESS;
-    
-    // Validate each message buffer
-    for (size_t i = 0U; i < num_messages; ++i) {
-        if ((messages[i].buf == NULL) || (messages[i].len == 0U))
-            return MPS2_I2C_ERR_ARGUMENT;
-    }
-    
-    // Proceed with transfer...
-}
-```
-
 **Best Practices**:
 - Validate all pointer parameters against NULL
 - Check size/length parameters against zero
@@ -509,52 +312,6 @@ int mps2_i2c_transfer(struct mps2_i2c_bus *bus, uint8_t target_addr,
 ### 8. Simulation vs Real Hardware
 
 Support both QEMU simulation and real hardware:
-
-```c
-struct mps2_i2c_bus {
-    MPS2_I2C_TypeDef *regs;
-    uint32_t delay_cycles;
-    uint32_t timeout_cycles;
-    uint8_t simulate_bus;  // 1 = simulation, 0 = real hardware
-};
-```
-
-**Simulation Mode** (QEMU without physical EEPROM):
-```c
-static int scl_is_high(const struct mps2_i2c_bus *bus) {
-    if (bus->simulate_bus != 0U)
-        return 1;  // Simulate ideal bus behavior
-    
-    return ((bus->regs->CONTROL & MPS2_I2C_SCL_MASK) != 0U);
-}
-
-static int receive_ack(struct mps2_i2c_bus *bus) {
-    if (bus->simulate_bus != 0U) {
-        // Simulate slave ACK
-        wait_scl_high(bus);
-        scl_drive_low(bus);
-        return MPS2_I2C_OK;
-    }
-    
-    // Real hardware: read SDA for ACK/NACK
-    result = read_bit(bus, &nack);
-    return (nack == 0U) ? MPS2_I2C_OK : MPS2_I2C_ERR_NACK;
-}
-```
-
-**Board Configuration**:
-```c
-struct mps2_i2c_bus g_shield0_i2c_bus = {
-    .regs = MPS2_SHIELD0_I2C,
-    .delay_cycles = 10U,
-    .timeout_cycles = 10000U,
-#if defined(LAB14_REAL_EEPROM)
-    .simulate_bus = 0U   // Real hardware
-#else
-    .simulate_bus = 1U   // QEMU simulation
-#endif
-};
-```
 
 **Benefits**:
 - Test driver logic without physical hardware
@@ -567,17 +324,6 @@ struct mps2_i2c_bus g_shield0_i2c_bus = {
 
 Control code generation for debugging and timing:
 
-```c
-__attribute__((noinline))
-void lab14_debug_checkpoint(void) {
-    __asm volatile ("nop");
-}
-
-__attribute__((noinline))
-static int write_byte(struct mps2_i2c_bus *bus, uint8_t value) {
-    // Function body
-}
-```
 
 **`noinline` Attribute**:
 - Prevents function from being inlined into caller
@@ -627,26 +373,6 @@ ACK     ← EEPROM acknowledges
 STOP
 ```
 
-**Call Stack**:
-```
-main()
-  → eeprom_write_byte()
-    → eeprom_write()
-      → mps2_i2c_transfer()
-        → generate_start()
-        → send_address()
-          → write_byte()
-            → write_bit() × 8
-            → receive_ack()
-        → write_message()
-          → write_byte()
-            → write_bit() × 8
-            → receive_ack()
-        → generate_stop()
-      → eeprom_wait_ready()
-        → mps2_i2c_probe()
-```
-
 ### I2C Read Transaction (Random Read)
 
 **Operation**: Read byte from EEPROM address 0x10
@@ -678,7 +404,7 @@ STOP
 
 ### Advanced Debugging Techniques
 
-#### Inspect GPIO Register State
+#### Inspect I2C Peripheral Register State
 ```gdb
 # View raw register values
 (gdb) print/x *bus->regs
@@ -776,15 +502,6 @@ Write operation: 0x50 << 1 | 0 = 0xA0 (10100000)
 Read operation:  0x50 << 1 | 1 = 0xA1 (10100001)
 ```
 
-Implementation:
-```c
-static int send_address(struct mps2_i2c_bus *bus, 
-                        uint8_t target_addr, int is_read) {
-    uint8_t address_byte = (target_addr << 1U) | (is_read ? 1U : 0U);
-    return write_byte(bus, address_byte);
-}
-```
-
 ### Clock Stretching Mechanism
 
 **Slave controls bus timing**:
@@ -808,11 +525,6 @@ This allows slow devices to pause the master.
 ### Bus Idle vs Busy Detection
 
 **Idle Bus**: Both SDA and SCL high (both released)
-```c
-static int bus_is_idle(const struct mps2_i2c_bus *bus) {
-    return (scl_is_high(bus) != 0) && (sda_is_high(bus) != 0);
-}
-```
 
 **Busy Bus**: SDA low while SCL high (invalid state)
 - Indicates stuck device or incomplete transaction
@@ -820,14 +532,16 @@ static int bus_is_idle(const struct mps2_i2c_bus *bus) {
 
 ## Software I2C Trade-offs
 
+**Note**: The MPS2 I2C peripheral used in this lab is a **minimalist hardware peripheral** that still requires software bit-banging. This section compares software-based I2C (like ours) versus full-featured I2C hardware controllers (with automatic protocol handling).
+
 ### Advantages
 
-✅ **Flexibility**: Use any GPIO pins, not limited by hardware  
-✅ **Multiple buses**: Create multiple I2C buses with different pins  
+✅ **Flexibility**: Minimal hardware allows protocol customization  
+✅ **Multiple buses**: MPS2 provides multiple I2C peripheral instances  
 ✅ **Bus recovery**: Manual control for unsticking devices  
 ✅ **Custom timing**: Adapt to non-standard devices  
 ✅ **Debugging**: Step through protocol at bit level  
-✅ **No hardware conflicts**: Useful when hardware I2C unavailable  
+✅ **FPGA efficiency**: Simple peripheral uses fewer FPGA resources  
 
 ### Disadvantages
 
@@ -840,37 +554,22 @@ static int bus_is_idle(const struct mps2_i2c_bus *bus) {
 
 ### When to Use Each
 
-**Use Software I2C When**:
-- Hardware I2C peripheral unavailable or broken
+**Use Software/Minimalist I2C (like MPS2) When**:
+- Full I2C hardware controller unavailable
+- Low-speed configuration interfaces (audio codecs, EEPROMs)
 - Need multiple I2C buses beyond hardware limit
 - Non-standard timing requirements
 - Bus recovery needed frequently
 - Educational/debugging purposes
-- Prototyping new I2C devices
+- FPGA resource constraints
 
-**Use Hardware I2C When**:
+**Use Full Hardware I2C Controller (e.g., STM32, NXP) When**:
 - High-speed transfers required (>100 kHz reliable)
 - Power efficiency critical
 - CPU bandwidth limited
 - DMA support beneficial
 - Multiple peripherals competing for CPU
 - Production system with proven hardware
-
-### Timing Comparison
-
-**Software I2C**:
-```
-Per-bit time: ~50-500 μs (depends on delay_cycles)
-Max reliable speed: ~50-100 kHz
-CPU utilization: 100% during transfer
-```
-
-**Hardware I2C**:
-```
-Per-bit time: Hardware-controlled (precise)
-Max speed: 400 kHz (Fast Mode), 1 MHz (Fast Mode Plus)
-CPU utilization: 1-5% (interrupt) or 0% (DMA)
-```
 
 ## Key Takeaways
 
@@ -882,7 +581,8 @@ CPU utilization: 1-5% (interrupt) or 0% (DMA)
 
 ### 2. MMIO Patterns
 - **SET/CLEAR registers** enable atomic bit manipulation without RMW
-- **Common in ARM** peripherals (GPIO, timers, interrupts)
+- **Common in ARM** peripherals (I2C, GPIO, timers, interrupts)
+- **MPS2 I2C peripheral** uses this pattern for SDA/SCL control
 - **Prevents race conditions** in multi-threaded or interrupt-driven code
 
 ### 3. Protocol Implementation
@@ -912,29 +612,6 @@ CPU utilization: 1-5% (interrupt) or 0% (DMA)
 - **Write polling** required for non-volatile memory
 - **Clock stretching** allows slow devices to control timing
 - **Address width** varies by device capacity
-
-## Hardware Setup (Real MPS2 Board)
-
-For running on real hardware with EEPROM shield:
-
-### Shield Configuration
-```c
-// In board_device.c
-struct mps2_i2c_bus g_shield0_i2c_bus = {
-    .regs = MPS2_SHIELD0_I2C,
-    .delay_cycles = 100U,        // Tune for desired speed
-    .timeout_cycles = 10000U,
-    .simulate_bus = 0U           // Real hardware mode
-};
-
-const struct eeprom_device g_board_eeprom = {
-    .bus = &g_shield0_i2c_bus,
-    .target_addr = 0x50U,        // Standard EEPROM address
-    .address_width = 1U,         // 24C02 = 1 byte, 24C256 = 2 bytes
-    .page_size = 8U,             // Check EEPROM datasheet
-    .ready_poll_limit = 1000U
-};
-```
 
 ## References
 

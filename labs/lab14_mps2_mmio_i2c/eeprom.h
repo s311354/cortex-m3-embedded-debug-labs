@@ -18,11 +18,11 @@
  *     2 = larger EEPROMs using 16-bit memory addresses
  */
 struct eeprom_device {
-  struct mps2_i2c_bus *bus;
-  uint8_t target_addr;
-  uint8_t address_width;
-  size_t page_size;
-  uint32_t ready_poll_limit;
+  struct mps2_i2c_bus *bus;  // I2C bus connection
+  uint8_t target_addr;       // 7-bit I2C slave address, without the R/W bit.
+  uint8_t address_width;     // 1 = 8-bit addr, 2 = 16-bit addr
+  size_t page_size;          // page size in bytes
+  uint32_t ready_poll_limit; // max polling attempts after write
 };
 
 enum eeprom_status {

@@ -6,6 +6,12 @@
 #define MPS2_I2C_SDA_MASK ((uint32_t)(SDA))
 #define MPS2_I2C_SCL_MASK ((uint32_t)(SCL))
 
+/**
+ * Software delay for I2C bit timing
+ * 
+ * Creates precise delays required by I2C protocol timing since the
+ * MPS2 I2C peripheral has no built-in baud rate generator.
+ */
 static void mps2_i2c_bit_delay(const struct mps2_i2c_bus *bus) {
   volatile uint32_t count;
 
@@ -13,6 +19,12 @@ static void mps2_i2c_bit_delay(const struct mps2_i2c_bus *bus) {
     __asm volatile ("nop");
 }
 
+/**
+ * Read SDA line state from MPS2 I2C peripheral
+ * 
+ * Uses CONTROL register to read current SDA pin state.
+ * In simulation mode, returns high to simulate ideal bus.
+ */
 static int sda_is_high(const struct mps2_i2c_bus *bus) {
   if (bus->simulate_bus != 0U)
     return 1;
@@ -20,6 +32,12 @@ static int sda_is_high(const struct mps2_i2c_bus *bus) {
   return ((bus->regs->CONTROL & MPS2_I2C_SDA_MASK) != 0U);
 }
 
+/**
+ * Read SCL line state from MPS2 I2C peripheral
+ * 
+ * Uses CONTROL register to read current SCL pin state.
+ * Important for clock stretching detection.
+ */
 static int scl_is_high(const struct mps2_i2c_bus *bus) {
   if (bus->simulate_bus != 0U)
     return 1;
@@ -64,6 +82,12 @@ static void bus_release(struct mps2_i2c_bus *bus) {
   scl_release(bus);
 }
 
+/**
+ * Check if I2C bus is idle
+ * 
+ * Bus is idle when both SDA and SCL are high.
+ * Reads line states from MPS2 I2C peripheral.
+ */
 static int bus_is_idle(const struct mps2_i2c_bus *bus) {
   return (scl_is_high(bus) != 0) && (sda_is_high(bus) != 0);
 }
@@ -248,32 +272,6 @@ static int read_byte(struct mps2_i2c_bus *bus, uint8_t *value, int send_ack) {
   return MPS2_I2C_OK;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 static int send_address(struct mps2_i2c_bus *bus, uint8_t target_addr, int is_read) {
   if (target_addr > 0x7FU)
     return MPS2_I2C_ERR_ADDRESS;
@@ -334,8 +332,7 @@ int mps2_i2c_init(struct mps2_i2c_bus *bus) {
 }
 
 __attribute__((noinline))
-int mps2_i2c_transfer(struct mps2_i2c_bus *bus, uint8_t target_addr, 
-  struct mps2_i2c_msg *messages, size_t num_messages) {
+int mps2_i2c_transfer(struct mps2_i2c_bus *bus, struct mps2_i2c_msg *messages, size_t num_messages, uint8_t target_addr) {
   if ((bus == NULL) ||
       (bus->regs == NULL) ||
       (messages == NULL) ||
@@ -349,6 +346,7 @@ int mps2_i2c_transfer(struct mps2_i2c_bus *bus, uint8_t target_addr,
   if (target_addr == 0x7FU)
     return MPS2_I2C_ERR_ADDRESS;
 
+  // Process each message in sequence
   for (size_t index = 0U; index < num_messages; ++index) {
     struct mps2_i2c_msg *message = &messages[index];
     
@@ -372,6 +370,7 @@ int mps2_i2c_transfer(struct mps2_i2c_bus *bus, uint8_t target_addr,
       return result;
     }
 
+    // Send address with R/W bit
     is_read = ((message->flags & MPS2_I2C_MSG_READ) != 0U);
 
     result = send_address(bus, target_addr, is_read);
@@ -381,6 +380,7 @@ int mps2_i2c_transfer(struct mps2_i2c_bus *bus, uint8_t target_addr,
       return result; 
     }
 
+    // Transfer data
     if (is_read != 0)
       result = read_message(bus, message);
     else
