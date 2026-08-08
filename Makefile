@@ -34,6 +34,7 @@ doctor:
 
 test:
 	@sh tests/test-doctor.sh
+	@sh tests/test-resolve-lab.sh
 
 # ===============================
 # Build every lab
@@ -72,25 +73,30 @@ list:
 # ===============================
 # Run / Debug / GDB
 # ===============================
+RESOLVE_LAB := ./scripts/resolve-lab.sh
 
 ifeq ($(LAB),)
 run:
-	$(error Usage: make run LAB=<lab_name>)
+	$(error Usage: make run LAB=<lab_name|number>)
 debug:
-	$(error Usage: make debug LAB=<lab_name>)
+	$(error Usage: make debug LAB=<lab_name|number>)
 gdb:
-	$(error Usage: make gdb LAB=<lab_name>)
+	$(error Usage: make gdb LAB=<lab_name|number>)
 dump:
-	$(error Usage: make dump LAB=<lab_name>)
+	$(error Usage: make dump LAB=<lab_name|number>)
 else
 run:
-	$(MAKE) -C $(LAB_DIR)/$(LAB) run
+	@lab="$$( $(RESOLVE_LAB) "$(LAB)" )" && \
+	$(MAKE) -C $(LAB_DIR)/$$lab run
 debug:
-	$(MAKE) -C $(LAB_DIR)/$(LAB) debug
+	@lab="$$( $(RESOLVE_LAB) "$(LAB)" )" && \
+	$(MAKE) -C $(LAB_DIR)/$$lab debug
 gdb:
-	$(MAKE) -C $(LAB_DIR)/$(LAB) gdb
+	@lab="$$( $(RESOLVE_LAB) "$(LAB)" )" && \
+	$(MAKE) -C $(LAB_DIR)/$$lab gdb
 dump:
-	$(MAKE) -C $(LAB_DIR)/$(LAB) dump
+	@lab="$$( $(RESOLVE_LAB) "$(LAB)" )" && \
+	$(MAKE) -C $(LAB_DIR)/$$lab dump
 endif
 
 # ===============================

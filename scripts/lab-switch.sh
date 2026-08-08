@@ -5,8 +5,8 @@
 
 set -e
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LAB="$1"
+ROOT="$(cd -- "$(dirname "$0")/.." && pwd)"
+LAB="${1:-}"
 
 if [ -z "${LAB}" ]; then
     echo "Available labs:"
@@ -14,7 +14,8 @@ if [ -z "${LAB}" ]; then
     for lab_dir in "${ROOT}"/labs/lab*; do
         if [ -d "${lab_dir}" ]; then
             lab_name=$(basename "${lab_dir}")
-            lab_num=$(echo "${lab_name}" | grep -oP 'lab\K\d+')
+            lab_num=$(echo "${lab_name}" |
+                      sed -n 's/^lab\([0-9][0-9]*\).*/\1/p')
             
             # Get first line of main.c as description if available
             main_file="${lab_dir}/main.c"
@@ -24,7 +25,7 @@ if [ -z "${LAB}" ]; then
                 desc="See lab directory"
             fi
             
-            printf "  %-30s %s\n" "${lab_name}" "${desc:-}"
+            printf "  %-35s %s\n" "${lab_name}" "${desc:-}"
         fi
     done
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
