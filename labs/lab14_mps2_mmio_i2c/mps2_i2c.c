@@ -16,7 +16,7 @@ static void mps2_i2c_bit_delay(const struct mps2_i2c_bus *bus) {
   volatile uint32_t count;
 
   for (count = 0U; count < bus->delay_cycles; ++count)
-    __asm volatile ("nop");
+    __NOP();
 }
 
 /**

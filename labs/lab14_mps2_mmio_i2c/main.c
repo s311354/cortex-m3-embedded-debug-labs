@@ -27,7 +27,7 @@ volatile uint8_t g_eeprom_read_value;
 
 __attribute__((noinline))
 void lab14_debug_chechpoint(void) {
-    __asm volatile ("nop");
+    __NOP();
 }
 
 __attribute__((naked))

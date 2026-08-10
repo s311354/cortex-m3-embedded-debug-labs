@@ -9,7 +9,7 @@ static void i2c_delay(void) {
     volatile uint32_t i;
 
     for (i = 0U; i < 100U; ++i) {
-        __asm volatile ("nop");
+        __NOP();
     }
 }
 
