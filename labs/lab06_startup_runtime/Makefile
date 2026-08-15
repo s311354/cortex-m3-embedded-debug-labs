@@ -11,6 +11,7 @@ LINKER_SCRIPT := $(COMMON)/linker.ld
 
 SRC := \
 startup.s \
+syscalls.c \
 main.c \
 runtime.c 
 
