@@ -48,6 +48,7 @@ zero_word:
 
 .thumb_func
 init_done:
+    /* initialize runtime */
     bl SystemInit
     #bl __libc_init_array
     bl __local_init_array

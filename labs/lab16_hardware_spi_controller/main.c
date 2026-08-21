@@ -48,10 +48,13 @@ int main (void) {
 
 
     g_stage = 1;
-
     debug_checkpoint();
 
-    init_result = mps2_ssp_init(&g_board_ssp3, &g_board_ssp3_config);
+    /*
+     *  Board layer injects SystemCoreClock
+     *  into the SSP configuration
+    */
+    init_result = board_ssp3_init();
 
     capture_register();
 

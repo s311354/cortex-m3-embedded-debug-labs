@@ -30,7 +30,7 @@ static uint32_t build_cr0(const struct mps2_ssp_config *cfg) {
 }
 
 int mps2_ssp_init(struct mps2_ssp *ssp, const struct mps2_ssp_config *cfg) {
-    if (ssp == 0 || cfg == 0) {
+    if (ssp == 0 || cfg == 0 || cfg->input_clock_hz == 0U) {
         return MPS2_SSP_ERROR_ARGUMENT;
     }
 

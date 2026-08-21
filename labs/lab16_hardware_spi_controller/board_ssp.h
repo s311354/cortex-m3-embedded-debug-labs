@@ -5,7 +5,9 @@
 
 extern struct mps2_ssp g_board_ssp3;
 
-extern const struct mps2_ssp_config g_board_ssp3_config;
+extern struct mps2_ssp_config g_board_ssp3_config;
+
+int board_ssp3_init(void);
 
 void board_ssp3_reset_runtime_state(void);
 

@@ -1,23 +1,12 @@
 #include "board_device.h"
+#include "system_CM3DS.h"
 
+#define BOARD_I2C_TARGET_HZ 100000U
+#define BOARD_DELAY_LOOP_CYCLES 5U
 
-/**
- * MPS2 Shield 0 I2C bus configuration
- * 
- * Timing calculation:
- * - Target I2C speed: ~100 kHz (Standard Mode)
- * - I2C bit time: 10 μs (100 kHz)
- * - Half bit time: 5 μs
- * - CPU frequency: 48 MHz (assumed)
- * - Cycles per μs: 48
- * - Cycles per half-bit: 240
- * - Accounting for function overhead: delay_cycles ≈ 48
- * 
- * The delay_cycles value can be tuned based on actual timing measurements.
- */
 struct mps2_i2c_bus g_shield0_i2c_bus = {
     .regs = MPS2_SHIELD0_I2C,
-    .delay_cycles = 48U,
+    .delay_cycles = 0U,
     .timeout_cycles = 10000U,
 
 #if defined(LAB14_REAL_EEPROM)
@@ -26,6 +15,27 @@ struct mps2_i2c_bus g_shield0_i2c_bus = {
     .simulate_bus = 1U  /* QEMU simulation: fake bus responses */
 #endif
 };
+
+/**
+ * MPS2 Shield 0 I2C bus configuration
+ * 
+ * Timing calculation:
+ * - Target I2C speed: ~100 kHz (Standard Mode)
+ * - I2C bit time: 10 μs (100 kHz)
+ * - Half bit time: 5 μs
+ * - CPU frequency: SystemCoreClock
+ */
+static uint32_t board_i2c_delay_cycles(uint32_t core_clock_hz, uint32_t i2c_clock_hz) {
+    uint32_t half_period_cycles;
+
+    if ((core_clock_hz == 0U) || (i2c_clock_hz == 0U)) {
+        return 0U;
+    }
+
+    half_period_cycles = core_clock_hz / (2U * i2c_clock_hz);
+
+    return half_period_cycles / BOARD_DELAY_LOOP_CYCLES;
+}
 
 /**
  * Address 0x50 is the standard 7-bit I2C address for many I2C EEPROMs
@@ -41,5 +51,10 @@ const struct eeprom_device g_board_eeprom = {
 };
 
 int board_devices_init(void) {
+    g_shield0_i2c_bus.delay_cycles = board_i2c_delay_cycles(SystemCoreClock, BOARD_I2C_TARGET_HZ);
+
+    if (g_shield0_i2c_bus.delay_cycles == 0U)
+        return MPS2_I2C_ERR_ARGUMENT;
+
     return mps2_i2c_init(&g_shield0_i2c_bus);
 }

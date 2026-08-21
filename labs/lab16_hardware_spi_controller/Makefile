@@ -4,7 +4,8 @@ PLATFORM := selftest
 COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)
 
 CORTEX_ROOT := ../../../ARM_M3_design
-CMSIS_MPS2 := $(CORTEX_ROOT)/m3designstart/software/cmsis/Device/ARM/CM3DS/Include
+CMSIS_MPS2_INC := $(CORTEX_ROOT)/m3designstart/software/cmsis/Device/ARM/CM3DS/Include
+CMSIS_MPS2_SRC := $(CORTEX_ROOT)/m3designstart/software/cmsis/Device/ARM/CM3DS/Source
 CMSIS_INC := $(CORTEX_ROOT)/m3designstart/software/cmsis/CMSIS/Include
 
 SELFTEST_ROOT := $(CORTEX_ROOT)/m3designstart/selftest
@@ -16,6 +17,7 @@ CMSIS_CORE_INC := $(SELFTEST_ROOT)/cmsis/Include
 LINKER_SCRIPT := $(COMMON)/linker.ld
 
 SRC := \
+$(CMSIS_MPS2_SRC)/system_CM3DS.c \
 main.c \
 runtime.c \
 mps2_ssp.c \

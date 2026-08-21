@@ -1,6 +1,6 @@
 #include "board_ssp.h"
+#include "system_CM3DS.h"
 
-#define BOARD_SSP_INPUT_CLOCK_HZ 25000000UL
 #define BOARD_SSP_TIMEOUT_CYCLES 100000UL
 
 /*
@@ -26,15 +26,21 @@ struct mps2_ssp g_board_ssp3 =
 	.actual_clock_hz = 0U
 };
 
-const struct mps2_ssp_config g_board_ssp3_config =
+struct mps2_ssp_config g_board_ssp3_config =
 {
 	.mode = MPS2_SSP_MODE_0,
 	.data_bits = 8U,
 	.loopback = 1U, // PL022 internal loopback
 	.cpsdvsr = BOARD_SSP_CPSDVSR,
 	.scr = BOARD_SSP_SCR,
-	.input_clock_hz = BOARD_SSP_INPUT_CLOCK_HZ
+	.input_clock_hz = 0U
 };
+
+int board_ssp3_init(void) {
+    g_board_ssp3_config.input_clock_hz = SystemCoreClock;
+
+    return mps2_ssp_init(&g_board_ssp3, &g_board_ssp3_config);
+}
 
 void board_ssp3_reset_runtime_state(void) {
     g_board_ssp3.actual_clock_hz = 0U;

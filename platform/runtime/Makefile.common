@@ -47,7 +47,7 @@ OBJS := $(OBJS:.s=.o)
 all: $(TARGET).elf $(TARGET).bin
 
 %.o: %.c
-	$(CC) $(CFLAGS) -I$(CMSIS_INC) -I$(CMSIS_MPS2) -I$(COMMON) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(CMSIS_INC) -I$(CMSIS_MPS2_INC) -I$(COMMON) -c $< -o $@
 %.o: %.s
 	$(AS) $(ASFLAGS) -c $< -o $@
 
