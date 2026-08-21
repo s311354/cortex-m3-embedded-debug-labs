@@ -4,102 +4,130 @@ Hands-on ARM Cortex-M3 laboratories designed for embedded software engineers to 
 
 The labs are designed to be executed on Linux using the GNU Arm Embedded Toolchain together with QEMU and GDB.
 
-# Learning Objectives
+## Who This Is For
+
+- **Embedded software engineers** transitioning to ARM Cortex-M platforms
+- **BSP developers** building board support packages and drivers
+- **Firmware engineers** needing deep understanding of ARMv7-M architecture
+- **Students** learning bare-metal embedded programming
+- **Anyone** wanting hands-on experience with low-level debugging
+
+## Learning Objectives
 
 This repository focuses on the practical skills required by embedded software and BSP engineers.
 
-Topics include:
-- Cross Compilation
-- Cortex-M3 Startup Code
-- Linker Script
+### Core Architecture Topics
+- Cross Compilation for ARM Cortex-M3
+- Cortex-M3 Startup Code and Boot Sequence
+- Linker Scripts and Memory Layout
 - CMSIS Core Register Access
 - ARM Assembly (Thumb-2)
-- Exception Handling
+- Processor Modes and Privilege Management
+- MSP / PSP (Dual Stack Architecture)
+- EXC_RETURN Mechanism
+
+### Exception and Interrupt Handling
+- Exception Handling Fundamentals
 - Hardware Exception Stack Frame
-- Interrupt Control
-- Processor Modes
-- Privilege Management
-- MSP / PSP
-- EXC_RETURN
-- Low-level Debugging
-- GDB
-- objdump
-- readelf
-- QEMU
+- NVIC (Nested Vectored Interrupt Controller)
+- Interrupt-Driven I/O
 
-# Development Environment
+### Peripheral and Driver Development
+- Memory-Mapped I/O (MMIO)
+- UART Communication (Polling, Interrupt, Ring Buffer)
+- I2C Protocol and EEPROM Access
+- SPI Protocol and Hardware Controllers
+- Multi-Layer Driver Architecture
 
-Host
-- [Ubuntu Linux](https://ubuntu.com/download)
+### Debug and Analysis Tools
+- Low-level Debugging with GDB
+- Binary Analysis (objdump, readelf, nm)
+- QEMU Emulation
+- Optimization Analysis
 
-ToolChain
-- [Arm GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads)
+## Development Environment
 
-Emulator
-- QEMU
+| Component | Description |
+|-----------|-------------|
+| **Host** | [Ubuntu Linux](https://ubuntu.com/download) (or compatible Linux distribution) |
+| **Toolchain** | [Arm GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads) (arm-none-eabi-*) |
+| **Emulator** | QEMU with ARM MPS2 support |
+| **Debugger** | GDB / gdb-multiarch |
+| **Platform** | Arm MPS2 + AN385 (Cortex-M3) |
+| **Architecture** | ARMv7-M / Cortex-M3 |
+| **AI Assistant** | Kiro CLI |
 
-Debugger
-- GDB / gdb-multiarch
+## Prerequisites
 
-Platform
-- Arm MPS2 + AN385 Cortex-M3
+Check your development environment:
 
-Architecture
-- ARMv7-M
-- Cortex-M3
+```bash
+make doctor
+```
 
-AI Assistant
-- Kiro CLI
-
-# Repository Structure
+## Repository Structure
 
 ```text
 cortex-m3-embedded-debug-labs/
-├── Makefile                  # Build all labs
-├── platform/
-│   ├── baremetal/
-│   │   ├── device.h
-│   │   ├── linker.ld
-│   │   ├── startup.s          # Minimal Startup
-│   │   └── Makefile.common
-│   │
-│   └── runtime/
-│       ├── linker.ld
-│       ├── startup.s          # Full C Runtime Startup
-│       ├── Makefile.common
-│       └── runtime.c
+├── Makefile                  # Build and run all labs
+├── scripts/                  # Development workflow scripts
+│   ├── tmux.sh              # Launch tmux-based development environment
+│   ├── lab-switch.sh        # Quick lab switching in tmux
+│   ├── kiro-helper.sh       # AI-powered lab assistance
+│   ├── doctor.sh            # Environment verification
+│   └── README.md            # Scripts documentation
 │
-├── labs/
-│   ├── lab00_cross_compile/
-│   ├── lab01_core_registers/
-│   ├── lab02_interrupt_control/
-│   ├── lab03_svc_exception/
-│   ├── lab04_stack_frame/
-│   ├── lab05_privilege_stack/
-│   ├── lab06_startup_runtime/
-│   ├── lab07_optimization/
-│   ├── lab08_uart_register/
-│   ├── lab09_uart_polling/
-│   ├── lab10_uart_interrupt/
-│   ├── lab11_uart_ringbuffer/
-│   ├── lab12_uart_driver_abstraction/
-│   ├── lab13_i2c_transaction/
-│   ├── lab14_mps2_mmio_i2c/
-│   ├── lab15_spi_transaction/
-└─  └── lab16_hardware_spi_controller/
+├── platform/                 # Platform-specific code
+│   ├── baremetal/           # Minimal startup (labs 00-05)
+│   │   ├── device.h         # Hardware definitions
+│   │   ├── linker.ld        # Memory layout
+│   │   ├── startup.s        # Minimal startup code
+│   │   └── Makefile.common  # Build rules
+│   │
+│   ├── runtime/             # Full C runtime (labs 06+)
+│   │   ├── device.h         # Hardware definitions
+│   │   ├── linker.ld        # Memory layout with .data/.bss
+│   │   ├── startup.s        # Full startup with initialization
+│   │   ├── runtime.c        # C runtime support
+│   │   ├── syscalls.c       # Newlib syscall stubs
+│   │   └── Makefile.common  # Build rules
+│   │
+│   └── selftest/            # Platform self-test utilities
+│
+├── labs/                     # Hands-on laboratories
+│   ├── lab00_cross_compile/              # Introduction to ARM cross-compilation
+│   ├── lab01_core_registers/             # CMSIS core register access
+│   ├── lab02_interrupt_control/          # NVIC and interrupt enabling
+│   ├── lab03_svc_exception/              # Supervisor call and EXC_RETURN
+│   ├── lab04_stack_frame/                # Hardware exception stack frame
+│   ├── lab05_privilege_stack/            # Privilege modes and MSP/PSP
+│   ├── lab06_startup_runtime/            # Full C runtime initialization
+│   ├── lab07_optimization/               # Compiler optimization effects
+│   ├── lab08_uart_register/              # Direct UART register access
+│   ├── lab09_uart_polling/               # Polled UART I/O
+│   ├── lab10_uart_interrupt/             # Interrupt-driven UART
+│   ├── lab11_uart_ringbuffer/            # Ring buffer for UART data
+│   ├── lab12_uart_driver_abstraction/    # Layered driver architecture
+│   ├── lab13_i2c_transaction/            # I2C protocol fundamentals
+│   ├── lab14_mps2_mmio_i2c/              # Hardware I2C with EEPROM
+│   ├── lab15_spi_transaction/            # Software SPI bit-banging
+│   └── lab16_hardware_spi_controller/    # Hardware SPI peripheral
+│
+└── tests/                    # Repository self-tests
 ```
 
-# Quick Start with Tmux + Kiro CLI
-
+## Quick Start with Tmux + Kiro CLI
 For an optimized development workflow with AI assistance:
 
-```bash
-# Start with specific lab
+```text
+# Start tmux environment with specific lab
 ./scripts/tmux.sh cortexm3 lab01_core_registers
 
-# Switch labs
-./scripts/lab-switch.sh 01
+# Switch to different lab (inside tmux session)
+./scripts/lab-switch.sh 05
 
-# Get Kiro help
+# Get AI-powered lab analysis
 ./scripts/kiro-helper.sh analyze-lab lab01_core_registers
 ```
+
+See [scripts/README.md](scripts/README.md) and [scripts/TMUX_WORKFLOW.md](scripts/TMUX_WORKFLOW.md) for details.
