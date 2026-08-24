@@ -37,7 +37,7 @@ void zero_bss(void) {
 void SystemInit(void) {
 }
 */
-
+/*
 void __local_init_array(void) {
     for (unsigned int i = 0; i < (__preinit_array_end - __preinit_array_start); ++i)
         __preinit_array_start[i]();
@@ -45,6 +45,7 @@ void __local_init_array(void) {
     for (unsigned int i = 0; i < (__init_array_end - __init_array_start); ++i)
 	__init_array_start[i]();
 }
+*/
 
 /*
  * destructor runner

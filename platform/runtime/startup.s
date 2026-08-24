@@ -50,13 +50,26 @@ zero_word:
 init_done:
     /* initialize runtime */
     bl SystemInit
-    #bl __libc_init_array
-    bl __local_init_array
+    bl __libc_init_array       /* Call libc_nano.a initialization */
     bl main
-    bl __local_cpp_fini
+    bl __libc_fini_array       /* Call libc_nano.a cleanup */
 
 1:
     b 1b
+
+/*
+ * _init and _fini stubs for __libc_init_array/__libc_fini_array
+ * These are called by libc_nano.a before/after init_array/fini_array
+ */
+.thumb_func
+.weak _init
+_init:
+    bx lr
+
+.thumb_func
+.weak _fini
+_fini:
+    bx lr
 
 .thumb_func
 NMI_Handler:
