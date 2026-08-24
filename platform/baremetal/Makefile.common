@@ -1,6 +1,7 @@
 CC      := arm-none-eabi-gcc
 AS      := arm-none-eabi-gcc
 LD      := arm-none-eabi-gcc
+CPP     := arm-none-eabi-gcc -E
 
 OBJCOPY := arm-none-eabi-objcopy
 OBJDUMP := arm-none-eabi-objdump
@@ -12,6 +13,20 @@ QEMU    := qemu-system-arm
 CPU     := cortex-m3
 
 vpath %.s $(COMMON)
+
+###############################
+# Linker Script Preprocessing
+###############################
+# Check if preprocessed linker script exists (.ld.S)
+# If so, generate .ld from .ld.S using C preprocessor
+LINKER_SCRIPT_SOURCE := $(COMMON)/linker.ld.S
+LINKER_SCRIPT_OUTPUT := linker.ld
+
+# Fallback to non-preprocessed if .ld.S doesn't exist
+ifeq ($(wildcard $(LINKER_SCRIPT_SOURCE)),)
+    LINKER_SCRIPT_SOURCE := $(COMMON)/linker.ld
+    LINKER_SCRIPT_OUTPUT := $(COMMON)/linker.ld
+endif
 
 ###############################
 # Flags
@@ -26,8 +41,25 @@ CFLAGS := \
 -ffunction-sections \
 -Wall
 
+# Preprocessor flags for linker script
+LDSCRIPT_CPPFLAGS := \
+-I$(CMSIS_INC) \
+-I$(CMSIS_MPS2) \
+-I$(COMMON) \
+-P \
+-x c
+
+# Allow override of stack/heap sizes at build time
+ifdef STACK_SIZE_OVERRIDE
+    LDSCRIPT_CPPFLAGS += -DSTACK_SIZE=$(STACK_SIZE_OVERRIDE)
+endif
+
+ifdef HEAP_SIZE_OVERRIDE
+    LDSCRIPT_CPPFLAGS += -DHEAP_SIZE=$(HEAP_SIZE_OVERRIDE)
+endif
+
 LDFLAGS := \
--T$(LINKER_SCRIPT) \
+-T$(LINKER_SCRIPT_OUTPUT) \
 -mthumb \
 -mcpu=$(CPU) \
 --specs=nano.specs \
@@ -46,14 +78,26 @@ OBJS := $(OBJS:.s=.o)
 
 all: $(TARGET).elf $(TARGET).bin
 
+# Preprocess linker script if using .ld.S source
+$(LINKER_SCRIPT_OUTPUT): $(LINKER_SCRIPT_SOURCE)
+	@if [ "$(LINKER_SCRIPT_SOURCE)" != "$(LINKER_SCRIPT_OUTPUT)" ]; then \
+		echo "Preprocessing linker script: $(LINKER_SCRIPT_SOURCE) -> $(LINKER_SCRIPT_OUTPUT)"; \
+		$(CPP) $(LDSCRIPT_CPPFLAGS) -o $@ $<; \
+	fi
+
 %.o: %.c
 	$(CC) $(CFLAGS) -I$(CMSIS_INC) -I$(CMSIS_MPS2) -I$(COMMON) -c $< -o $@
 %.o: %.s
 	$(AS) $(ASFLAGS) -c $< -o $@
 
-$(TARGET).elf: $(OBJS)
+$(TARGET).elf: $(LINKER_SCRIPT_OUTPUT) $(OBJS)
 	$(LD) $(OBJS) $(LDFLAGS) -o $@
 	$(SIZE) $@
+	@echo ""
+	@echo "Memory Usage Summary:"
+	@echo "===================="
+	@$(OBJDUMP) -t $@ | grep -E "__flash_size__|__ram_size__|__ram_used__|__ram_free__|__stack_size__|__heap_size__|__text_size__|__data_size__|__bss_size__" | \
+		awk '{printf "%-20s = 0x%08x (%d bytes)\n", $$NF, strtonum("0x"$$1), strtonum("0x"$$1)}' || true
 
 $(TARGET).bin:
 	$(OBJCOPY) -O binary $(TARGET).elf $(TARGET).bin
@@ -84,4 +128,4 @@ run: $(TARGET).elf
 		-kernel $<
 
 clean:
-	rm -f *.o *.elf *.bin *.map
+	rm -f *.o *.elf *.bin *.map linker.ld
