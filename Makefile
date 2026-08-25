@@ -23,7 +23,8 @@ LABS := \
        lab13_i2c_transaction \
        lab14_mps2_mmio_i2c \
        lab15_spi_transaction \
-       lab16_hardware_spi_controller
+       lab16_hardware_spi_controller \
+       lab17_pcie_host_config
 
 LAB_DIR := labs
 
