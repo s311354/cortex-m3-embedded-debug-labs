@@ -45,6 +45,14 @@ check_command qemu-system-arm \
 	"Install qemu-system-arm."
 check_command gdb-multiarch \
 	"Install gdb-multiarch."
+check_command iverilog \
+	"Install Icarus Verilog (iverilog) for RTL simulation."
+check_command vvp \
+	"Install Icarus Verilog (iverilog) for RTL simulation."
+check_command verilator \
+	"Install Verilator for RTL linting."
+check_command gtkwave \
+	"Install GTKWave for waveform viewing."
 
 check_directory \
 	"ARM_M3_design" \
