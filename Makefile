@@ -26,7 +26,8 @@ LABS := \
        lab16_hardware_spi_controller \
        lab17_pcie_host_config \
        lab18_pcie_enumeration \
-       lab19_pcie_bar_resource_zephyr
+       lab19_pcie_bar_resource_zephyr \
+       labh1_ahb_pcie_host_bridge
 
 LAB_DIR := labs
 
