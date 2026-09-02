@@ -1,0 +1,91 @@
+[*]
+[*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
+[*] Wed Sep 02 08:19:00 2026
+[*]
+[dumpfile] "build/labh1.vcd"
+[savefile] "labh1_verification.gtkw"
+[timestart] 0
+[size] 1920 1080
+[pos] -1 -1
+*-10.000000 85000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_labh1.
+[treeopen] tb_labh1.u_bridge.
+[sst_width] 250
+[signals_width] 250
+[sst_expanded] 1
+[sst_vpaned] 300
+@28
+tb_labh1.HCLK
+tb_labh1.HRESETn
+@200
+-
+-=== AHB Interface ===
+@28
+tb_labh1.HSEL
+@22
+tb_labh1.HADDR[31:0]
+@28
+tb_labh1.HTRANS[1:0]
+tb_labh1.HWRITE
+tb_labh1.HSIZE[2:0]
+@22
+tb_labh1.HWDATA[31:0]
+tb_labh1.HRDATA[31:0]
+@28
+tb_labh1.HREADY
+tb_labh1.HREADYOUT
+tb_labh1.HRESP
+@200
+-
+-=== Bridge Internal Registers ===
+@22
+tb_labh1.u_bridge.control[31:0]
+@28
+tb_labh1.u_bridge.busy
+tb_labh1.u_bridge.done
+@22
+tb_labh1.u_bridge.cfg_bdf[31:0]
+tb_labh1.u_bridge.cfg_reg[31:0]
+tb_labh1.u_bridge.cfg_command[31:0]
+tb_labh1.u_bridge.cfg_rdata[31:0]
+tb_labh1.u_bridge.error_status[31:0]
+@200
+-
+-=== FSM State ===
+@22
+tb_labh1.u_bridge.state[1:0]
+@200
+-
+-=== Backend Request ===
+@28
+tb_labh1.req_valid
+tb_labh1.req_ready
+@22
+tb_labh1.req_type[1:0]
+tb_labh1.req_bdf[31:0]
+@23
+tb_labh1.req_reg[9:0]
+@22
+tb_labh1.req_wdata[31:0]
+@200
+-
+-=== Backend Completion ===
+@28
+tb_labh1.cpl_valid
+tb_labh1.cpl_ready
+@22
+tb_labh1.cpl_status[1:0]
+tb_labh1.cpl_rdata[31:0]
+@200
+-
+-=== Backend Stub Internals ===
+@28
+tb_labh1.u_backend.pending
+@22
+tb_labh1.u_backend.delay_count[1:0]
+tb_labh1.u_backend.saved_type[1:0]
+tb_labh1.u_backend.saved_bdf[31:0]
+@23
+tb_labh1.u_backend.saved_reg[9:0]
+[pattern_trace] 1
+[pattern_trace] 0

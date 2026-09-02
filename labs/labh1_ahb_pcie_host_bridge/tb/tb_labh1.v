@@ -246,7 +246,7 @@ initial begin
 		$finish;
 	end
 
-	$display("LABH1 PASS: CG_READ 00:01.0 -> %08x", value);
+	$display("LABH1 PASS: CF_READ 00:01.0 -> %08x", value);
 
         $finish;
 end

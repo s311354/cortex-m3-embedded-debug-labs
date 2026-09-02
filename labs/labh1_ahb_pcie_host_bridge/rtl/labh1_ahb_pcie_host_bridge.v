@@ -8,8 +8,10 @@ module labh1_ahb_pcie_host_bridge (
     input wire         HSEL,
     input wire         HREADY,
 
+    /* verilator lint_off UNUSED */
     input wire [31:0]  HADDR,
     input wire [1:0]   HTRANS,
+    /* verilator lint_on UNUSED */
     input wire         HWRITE,
     input wire [2:0]   HSIZE,
     input wire [31:0]  HWDATA,

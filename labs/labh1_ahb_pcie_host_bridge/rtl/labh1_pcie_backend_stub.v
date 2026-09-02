@@ -8,7 +8,9 @@ module labh1_pcie_backend_stub(
     input wire [1:0]    req_type,
     input wire [31:0]   req_bdf,
     input wire [9:0]    req_reg,
-    input wire [31:0]   req_wdata,
+    /* verilator lint_off UNUSED */
+    input wire [31:0]   req_wdata,  // Intentionally unused in stub
+    /* verilator lint_on UNUSED */
 
     output reg          cpl_valid,
     input wire          cpl_ready,
@@ -31,7 +33,6 @@ reg [1:0]    delay_count;
 reg [1:0]    saved_type;
 reg [31:0]   saved_bdf;
 reg [9:0]    saved_reg;
-reg [31:0]   saved_wdata;
 
 assign req_ready = !pending && !cpl_valid;
 
@@ -43,7 +44,6 @@ always @(posedge clk or negedge resetn) begin
 		saved_type    <= 2'd0;
 		saved_bdf     <= 32'd0;
 		saved_reg     <= 10'd0;
-		saved_wdata   <= 32'd0;
 
 		cpl_valid     <= 1'b0;
 		cpl_status    <= 2'd0;
@@ -64,7 +64,6 @@ always @(posedge clk or negedge resetn) begin
 			saved_type    <= req_type;
 			saved_bdf     <= req_bdf;
 			saved_reg     <= req_reg;
-			saved_wdata   <= req_wdata;
 
 			pending       <= 1'b1;
 
