@@ -3,18 +3,16 @@ module labh1_pcie_backend_stub(
     input wire          resetn,
 
     input wire          req_valid,
-    output wire         req_ready,
-
     input wire [1:0]    req_type,
     input wire [31:0]   req_bdf,
     input wire [9:0]    req_reg,
-    /* verilator lint_off UNUSED */
-    input wire [31:0]   req_wdata,  // Intentionally unused in stub
-    /* verilator lint_on UNUSED */
+    input wire [31:0]   req_wdata,
 
-    output reg          cpl_valid,
+    output wire         req_ready,
+
     input wire          cpl_ready,
 
+    output reg          cpl_valid,
     output reg [1:0]    cpl_status,
     output reg [31:0]   cpl_rdata
 );
@@ -26,6 +24,9 @@ localparam [1:0] REQ_CFG_WRITE = 2'd1;
 * Educational endpoint: BDF = 00:01.0
 */
 localparam [31:0] ENDPOINT_BDF = 32'h00000800;
+
+// Dummy wire to acknowledge unused signals
+wire _unused_ok = &{1'b0, req_wdata};
 
 reg          pending;
 reg [1:0]    delay_count;

@@ -6,15 +6,13 @@ module labh1_ahb_pcie_host_bridge (
     * AHB-Lite slave interface
     */
     input wire         HSEL,
-    input wire         HREADY,
-
-    /* verilator lint_off UNUSED */
     input wire [31:0]  HADDR,
     input wire [1:0]   HTRANS,
-    /* verilator lint_on UNUSED */
     input wire         HWRITE,
     input wire [2:0]   HSIZE,
+
     input wire [31:0]  HWDATA,
+    input wire         HREADY,
 
     output reg [31:0]  HRDATA,
     output wire        HREADYOUT,
@@ -23,9 +21,10 @@ module labh1_ahb_pcie_host_bridge (
     /*
     * Abstract PCIe request interface. 
     */
-    output wire        req_valid,
+
     input  wire        req_ready,
 
+    output wire        req_valid,
     output wire [1:0]  req_type,
     output wire [31:0] req_bdf,    
     output wire [9:0]  req_reg,
@@ -35,10 +34,10 @@ module labh1_ahb_pcie_host_bridge (
     * Abstract completion interface
     */
     input wire         cpl_valid,
-    output wire        cpl_ready,
-
     input wire [1:0]   cpl_status,
-    input wire [31:0]  cpl_rdata
+    input wire [31:0]  cpl_rdata,
+
+    output wire        cpl_ready
 );
 
 /*
@@ -79,6 +78,9 @@ localparam [31:0]   ERR_BAD_ACCESS         = 32'h00000010;
 localparam [1:0]    STATE_IDLE             = 2'd0;
 localparam [1:0]    STATE_ISSUE            = 2'd1;
 localparam [1:0]    STATE_WAIT_CPL         = 2'd2;
+
+// Dummy wire to acknowledge unused signal bits
+wire _unused_ok = &{1'b0, HADDR[31:16], HTRANS[0]};
 
 /*
 * Programmer-visible registers

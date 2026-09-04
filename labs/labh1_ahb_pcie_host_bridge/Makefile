@@ -66,3 +66,4 @@ rtl-lint:
 sim-clean:
 	rm -rf $(RTL_BUILD)
 
+include sim/designstart.mk
