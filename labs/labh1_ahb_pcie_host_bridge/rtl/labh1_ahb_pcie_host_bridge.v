@@ -117,7 +117,7 @@ reg [31:0]    req_bdf_r;
 reg [9:0]     req_reg_r;
 reg [31:0]    req_wdata_r;
 
-reg [1:0]     state;
+reg [1:0]     state; // STATE_IDLE -> STATE_ISSUE -> STATE_WAIT_CPL -> STATE_IDLE
 
 /*
 * AHB
@@ -206,6 +206,8 @@ end
 */
 always @(posedge HCLK or negedge HRESETn) begin
 	if (!HRESETn) begin
+		state        <= STATE_IDLE;
+
 		control      <= 32'd0;
 
 		busy         <= 1'b0;
@@ -228,8 +230,6 @@ always @(posedge HCLK or negedge HRESETn) begin
 		req_bdf_r    <= 32'd0;
 		req_reg_r    <= 10'd0;
 		req_wdata_r  <= 32'd0;
-
-		state        <= STATE_IDLE;
 
 	end else begin
 	        /*
@@ -289,16 +289,12 @@ always @(posedge HCLK or negedge HRESETn) begin
 							error_status <= error_status | ERR_BUSY;
 
 						end else if ((HWDATA == CMD_CFG_READ) || (HWDATA == CMD_CFG_WRITE))  begin
+							state         <= STATE_ISSUE;
+
 							busy         <= 1'b1;
 							done         <= 1'b0;
 
 							error_status <= 32'd0;
-
-							req_bdf_r    <= cfg_bdf;
-
-							req_reg_r    <= cfg_reg[9:0];
-
-							req_wdata_r  <= cfg_wdata;
 
 							if (HWDATA == CMD_CFG_READ) begin
 								req_type_r <= REQ_CFG_READ;
@@ -307,7 +303,12 @@ always @(posedge HCLK or negedge HRESETn) begin
 								req_type_r <= REQ_CFG_WRITE;
 							end
 
-							state         <= STATE_ISSUE;
+							req_bdf_r    <= cfg_bdf;
+
+							req_reg_r    <= cfg_reg[9:0];
+
+							req_wdata_r  <= cfg_wdata;
+
 						end else begin
 							busy          <= 1'b0;
 							done          <= 1'b1;
@@ -342,6 +343,8 @@ always @(posedge HCLK or negedge HRESETn) begin
 			STATE_WAIT_CPL:
 			begin
 				if (cpl_valid) begin
+					state    <= STATE_IDLE;
+
 					busy    <= 1'b0;
 					done    <= 1'b1;
 
@@ -354,15 +357,13 @@ always @(posedge HCLK or negedge HRESETn) begin
 							cfg_rdata  <= cpl_rdata;
 						end
 					end
-
-					state    <= STATE_IDLE;
 				end
 			end
 
 			default:
 	                begin
-				busy     <= 1'b0;
 				state    <= STATE_IDLE;
+				busy     <= 1'b0;
 			end
 		endcase
 	end
