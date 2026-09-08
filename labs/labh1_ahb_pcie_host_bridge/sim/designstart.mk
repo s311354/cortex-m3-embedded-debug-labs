@@ -2,7 +2,7 @@
 # LabH1 ARM DesignStart full-system integration
 #
 LABH1_ROOT := \
-	      $(abspath $(dir $(lastwprd $(MAKEFILE_LIST)))/..)
+	      $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 ARM_M3_ROOT ?= \
 	       $(abspath $(LABH1_ROOT)/../../../ARM_M3_design)
@@ -61,12 +61,16 @@ designstart-baseline:
 # DesignStart + LabH1 RTL
 ####################################
 
+# Default to 32-bit for ModelSim Starter Edition
+SIM_64BIT ?= no
+
 designstart-compile: designstart-filelist
 	$(MAKE) -C $(ARM_EXEC_TB) clean
 
 	$(MAKE) -C $(ARM_EXEC_TB) \
 		compile \
 		SIMULATOR=$(ARM_SIM) \
+		SIM_64BIT=$(SIM_64BIT) \
 		BUILDOPTS="+define+M3DS_PCIE_HOST -f $(LABH1_DS_FILELIST)"
 
 ####################################
@@ -87,7 +91,8 @@ designstart-run:
 	$(MAKE) -C $(ARM_EXEC_TB) \
 		run \
 		TESTNAME=pcie_host_smoke \
-		SIMULATOR=$(ARM_SIM)
+		SIMULATOR=$(ARM_SIM) \
+		SIM_64BIT=$(SIM_64BIT)
 
 ####################################
 # Full Level-3 verification

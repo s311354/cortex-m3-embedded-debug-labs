@@ -7,11 +7,11 @@ extern uint32_t _edata;
 extern uint32_t _sbss;
 extern uint32_t _ebss;
 
-extern void (*__preinit_array_start[])(void);
-extern void (*__preinit_array_end[])(void);
+//Extern void (*__preinit_array_start[])(void);
+//Extern void (*__preinit_array_end[])(void);
 
-extern void (*__init_array_start[])(void);
-extern void (*__init_array_end[])(void);
+//Extern void (*__init_array_start[])(void);
+//Extern void (*__init_array_end[])(void);
 
 extern void (*__fini_array_start[])(void);
 extern void (*__fini_array_end[])(void);

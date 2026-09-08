@@ -27,7 +27,8 @@ LABS := \
        lab17_pcie_host_config \
        lab18_pcie_enumeration \
        lab19_pcie_bar_resource_zephyr \
-       labh1_ahb_pcie_host_bridge
+       labh1_ahb_pcie_host_bridge \
+       labh2_pcie_transaction_model
 
 LAB_DIR := labs
 
