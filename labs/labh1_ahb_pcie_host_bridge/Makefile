@@ -47,7 +47,7 @@ RTL_BUILD := build
 
 SHARED_RTL := \
 	      $(PCIE_PLATFORM_RTL)/m3ds_pcie_host_wrapper.v \
-	      $(PCIE_PLATFORM_RTL)/labh1_ahb_pcie_host_bridge.v \
+	      $(PCIE_PLATFORM_RTL)/labh1_ahb_pcie_host_bridge.v
 
 LABH1_RTL := \
 	     rtl/m3ds_pcie_backend.v \
@@ -95,7 +95,7 @@ verify:
 	$(MAKE) sim
 
 sim-clean:
-	rm -rf $(RTL_BUILD) modelsim_env.sh modelsim_wrapper.sh Makefile.modelsim modelsim_bin
+	rm -rf $(RTL_BUILD) modelsim_bin
 
 ################################################
 # ARM DesignStart Level 3

@@ -167,12 +167,48 @@ echo -e "${BLUE}======================================${NC}"
 echo -e "${GREEN}✓ All checks passed!${NC}"
 echo -e "${BLUE}======================================${NC}"
 echo ""
+
+# Create container wrapper scripts (needed on ARM64 to call x86 ModelSim)
+print_info "Creating ModelSim container wrappers..."
+
+WRAPPER_DIR="${SCRIPT_DIR}/modelsim_bin"
+mkdir -p "${WRAPPER_DIR}"
+
+for TOOL in vsim vlog vlib vcom vmap vopt; do
+    cat > "${WRAPPER_DIR}/${TOOL}" << 'WRAPPER_EOF'
+#!/bin/bash
+# ModelSim container wrapper
+MODELSIM_HOST_PATH="/home/shelton/intelFPGA/20.1/modelsim_ase"
+IMAGE_NAME="localhost/modelsim-runner:local"
+WORK_DIR="$(pwd)"
+
+exec podman run --rm \
+    --platform linux/amd64 \
+    -v "${MODELSIM_HOST_PATH}:/opt/modelsim:ro" \
+    -v "$(dirname $(dirname $WORK_DIR)):$(dirname $(dirname $WORK_DIR))" \
+    -w "${WORK_DIR}" \
+    --userns=keep-id \
+    -e PATH="/opt/modelsim/linuxaloem:/usr/local/bin:/usr/bin:/bin" \
+    "${IMAGE_NAME}" \
+    /opt/modelsim/linuxaloem/TOOL_NAME "$@"
+WRAPPER_EOF
+    
+    # Replace TOOL_NAME with actual tool
+    sed -i "s/TOOL_NAME/${TOOL}/" "${WRAPPER_DIR}/${TOOL}"
+    chmod +x "${WRAPPER_DIR}/${TOOL}"
+done
+
+print_pass "Wrappers created in ${WRAPPER_DIR}"
+
+echo ""
 echo "Configuration:"
 echo "  Container:      ${CONTAINER_ENGINE}"
 echo "  Image:          ${IMAGE_NAME}"
 echo "  ModelSim path:  ${MODELSIM_HOST_PATH}"
 echo "  DesignStart:    ${ARM_M3_ROOT}"
+echo "  Wrappers:       ${WRAPPER_DIR}"
 echo ""
-echo "Ready to run simulations:"
-echo "  make designstart-all"
+echo "Add wrappers to PATH before building:"
+echo "  export PATH=\"${WRAPPER_DIR}:\$PATH\""
+echo "  make designstart-baseline"
 echo ""

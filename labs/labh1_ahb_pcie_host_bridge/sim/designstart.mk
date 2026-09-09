@@ -19,7 +19,6 @@ LABH1_BUILD := \
 LABH1_DS_FILELIST := \
 		     $(LABH1_BUILD)/designstart_labh1.f
 
-# Simulation configuration
 ARM_SIM ?= mti
 SIM_64BIT ?= no
 TESTNAME ?= pcie_host_smoke
@@ -91,7 +90,7 @@ designstart-compile: designstart-filelist
 		BUILDOPTS="+define+M3DS_PCIE_HOST -f $(LABH1_DS_FILELIST)"
 
 ####################################
-# Firmware build
+# Cortex-M3 CPU-side smoke firmwave
 ####################################
 
 # Check if testcode source exists
@@ -160,10 +159,9 @@ designstart-run:
 		2>&1 | tee $(LABH1_BUILD)/logs/simulation_$$(date +%Y%m%d_%H%M%S).log
 
 ####################################
-# Complete workflow targets
+# Full Level-3 verification
 ####################################
 
-# Original full workflow (compile RTL + build firmware + run)
 designstart:
 	$(MAKE) designstart-compile
 	$(MAKE) designstart-firmware
