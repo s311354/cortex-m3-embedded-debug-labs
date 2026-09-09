@@ -20,6 +20,7 @@ module labh1_ahb_pcie_host_bridge (
 
     /*
     * Abstract PCIe request interface. 
+    * Host Bridge -> backend
     */
 
     input  wire        req_ready,
@@ -32,6 +33,7 @@ module labh1_ahb_pcie_host_bridge (
 
     /*
     * Abstract completion interface
+    * backend -> Host Bridge
     */
     input wire         cpl_valid,
     input wire [1:0]   cpl_status,

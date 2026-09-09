@@ -19,6 +19,10 @@ module m3ds_pcie_host_wrapper
 	output wire        HRESP
 );
 
+/*
+* Abstract PCIe request channel
+* Host Bridge -> backend
+*/
 wire          req_valid;
 wire [1:0]    req_type;
 wire [31:0]   req_bdf;
@@ -27,12 +31,19 @@ wire [31:0]   req_wdata;
 
 wire          req_ready;
 
+/*
+* Abstract PCIe completion channel
+* backend -> Host Bridge
+*/
 wire          cpl_ready;
 
 wire          cpl_valid;
 wire [1:0]    cpl_status;
 wire [31:0]   cpl_rdata;
 
+/*
+* Shared AHB-to-PCIe Host Bridge
+*/
 labh1_ahb_pcie_host_bridge u_labh1_ahb_pcie_host_bridge
 (
 	// Inputs
@@ -74,9 +85,10 @@ labh1_ahb_pcie_host_bridge u_labh1_ahb_pcie_host_bridge
 
 /*
 * This module name is intentionally generic
-* H1: fake backend
+* H1: m3ds_pcie_backend -> labh1_pcie_backend_stub (fake backend)
+* H2: m3ds_pcie_backend -> TLP TX -> endpoint transaction model -> TLP RX
 */
-labh1_pcie_backend_stub u_m3ds_pcie_backend
+m3ds_pcie_backend u_m3ds_pcie_backend
 (
 	// Inputs
 	.clk           (HCLK),
