@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module labh1_pcie_backend_stub(
     input wire          clk,
     input wire          resetn,

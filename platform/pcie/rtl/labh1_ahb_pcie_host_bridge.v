@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module labh1_ahb_pcie_host_bridge (
     input wire HCLK,
     input wire HRESETn,

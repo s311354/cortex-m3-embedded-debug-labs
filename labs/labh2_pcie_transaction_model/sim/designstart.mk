@@ -1,11 +1,11 @@
 #
-# LabH1 ARM DesignStart full-system integration
+# LabH2 ARM DesignStart full-system verification
 #
-LABH1_ROOT := \
+LABH2_ROOT := \
 	      $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 
 ARM_M3_ROOT ?= \
-	       $(abspath $(LABH1_ROOT)/../../../ARM_M3_design)
+	       $(abspath $(LABH2_ROOT)/../../../ARM_M3_design)
 
 ARM_TESTBENCH := \
 		 $(ARM_M3_ROOT)/m3designstart/logical/testbench
@@ -13,20 +13,20 @@ ARM_TESTBENCH := \
 ARM_EXEC_TB := \
 	       $(ARM_TESTBENCH)/execution_tb
 
-LABH1_BUILD := \
-	       $(LABH1_ROOT)/build
+LABH2_BUILD := \
+	       $(LABH2_ROOT)/build
 
-LABH1_DS_FILELIST := \
-		     $(LABH1_BUILD)/designstart_labh1.f
+LABH2_DS_FILELIST := \
+		     $(LABH2_BUILD)/designstart_labh2.f
 
 ARM_SIM ?= mti
 SIM_64BIT ?= no
-TESTNAME ?= pcie_host_smoke
+TESTNAME ?= pcie_host_labh2
 TOOL_CHAIN ?= gcc
 
 # Container ModelSim: Additional directories to mount
 # Default: Root of cortex-m3-embedded-debug-labs project AND ARM_M3_design
-MODELSIM_EXTRA_MOUNTS ?= $(abspath $(LABH1_ROOT)/../..) $(ARM_M3_ROOT)
+MODELSIM_EXTRA_MOUNTS ?= $(abspath $(LABH2_ROOT)/../..) $(ARM_M3_ROOT)
 
 # Testcode paths
 TESTCODE_DIR := $(ARM_TESTBENCH)/testcodes/$(TESTNAME)
@@ -34,18 +34,20 @@ TESTCODE_BIN := $(TESTCODE_DIR)/$(TESTNAME).bin
 TESTCODE_ELF := $(TESTCODE_DIR)/$(TESTNAME).elf
 
 ####################################
-# LabH1 RTL added to DesignStart
+# LabH2 RTL added to DesignStart
 ####################################
 
 # Shared platform RTL (common across labs)
 PLATFORM_PCIE_RTL := \
-		     $(LABH1_ROOT)/../../platform/pcie/rtl
+		     $(LABH2_ROOT)/../../platform/pcie/rtl
 
-LABH1_DS_RTL := \
+LABH2_DS_RTL := \
 		$(PLATFORM_PCIE_RTL)/m3ds_pcie_host_wrapper.v \
 		$(PLATFORM_PCIE_RTL)/labh1_ahb_pcie_host_bridge.v \
-		$(LABH1_ROOT)/rtl/m3ds_pcie_backend.v \
-		$(LABH1_ROOT)/rtl/labh1_pcie_backend_stub.v
+		$(LABH2_ROOT)/rtl/m3ds_pcie_backend.v \
+		$(LABH2_ROOT)/rtl/labh2_pcie_tlp_tx.v \
+		$(LABH2_ROOT)/rtl/labh2_pcie_endpoint_model.v \
+		$(LABH2_ROOT)/rtl/labh2_pcie_tlp_rx.v
 
 .PHONY: \
 	designstart-filelist \
@@ -63,10 +65,10 @@ LABH1_DS_RTL := \
 ####################################
 
 designstart-filelist:
-	mkdir -p $(LABH1_BUILD)
-	rm -f $(LABH1_DS_FILELIST)
-	for src in $(LABH1_DS_RTL); do \
-		realpath "$$src" >> $(LABH1_DS_FILELIST); \
+	mkdir -p $(LABH2_BUILD)
+	rm -f $(LABH2_DS_FILELIST)
+	for src in $(LABH2_DS_RTL); do \
+		printf "%s\n" "$$src" >> $(LABH2_DS_FILELIST); \
 	done
 
 ####################################
@@ -81,21 +83,20 @@ designstart-baseline:
 		SIMULATOR=$(ARM_SIM)
 
 ####################################
-# DesignStart + LabH1 RTL
+# DesignStart + LabH2 RTL backend
 ####################################
 
 designstart-compile: designstart-filelist
 	$(MAKE) -C $(ARM_EXEC_TB) clean
 
-	export MODELSIM_EXTRA_MOUNTS="$(MODELSIM_EXTRA_MOUNTS)"; \
 	$(MAKE) -C $(ARM_EXEC_TB) \
 		compile \
 		SIMULATOR=$(ARM_SIM) \
 		SIM_64BIT=$(SIM_64BIT) \
-		BUILDOPTS="+define+M3DS_PCIE_HOST -f $(LABH1_DS_FILELIST)"
+		BUILDOPTS="+define+M3DS_PCIE_HOST -f $(LABH2_DS_FILELIST)" \
 
 ####################################
-# Cortex-M3 CPU-side smoke firmwave
+# Cortex-M3 CPU-side firmwave
 ####################################
 
 # Check if testcode source exists
@@ -111,15 +112,15 @@ designstart-firmware: designstart-firmware-check
 	@echo "========================================"
 	@echo "Building firmware: $(TESTNAME)"
 	@echo "========================================"
-	@mkdir -p $(LABH1_BUILD)
+	@mkdir -p $(LABH2_BUILD)
 	$(MAKE) -C $(ARM_EXEC_TB) \
 		testcode \
 		TESTNAME=$(TESTNAME) \
 		TOOL_CHAIN=$(TOOL_CHAIN) \
-		2>&1 | tee $(LABH1_BUILD)/firmware_build.log
+		2>&1 | tee $(LABH2_BUILD)/firmware_build.log
 	@if [ ! -f "$(TESTCODE_BIN)" ]; then \
 		echo "ERROR: Firmware build failed - $(TESTNAME).bin not found"; \
-		echo "Check log: $(LABH1_BUILD)/firmware_build.log"; \
+		echo "Check log: $(LABH2_BUILD)/firmware_build.log"; \
 		exit 1; \
 	fi
 	@echo "========================================"
@@ -140,7 +141,7 @@ designstart-clean:
 		      $(TESTCODE_DIR)/*.hex $(TESTCODE_DIR)/*.lst $(TESTCODE_DIR)/*.map; \
 	fi
 	@echo "  - Lab build directory"
-	@rm -rf $(LABH1_BUILD)
+	@rm -rf $(LABH2_BUILD)
 	@echo "  - RTL compilation artifacts"
 	@if [ -d "$(ARM_EXEC_TB)" ]; then \
 		$(MAKE) -C $(ARM_EXEC_TB) clean 2>/dev/null || true; \
@@ -155,14 +156,24 @@ designstart-run:
 	@echo "========================================"
 	@echo "Running simulation: $(TESTNAME)"
 	@echo "========================================"
-	@mkdir -p $(LABH1_BUILD)/logs
+	@mkdir -p $(LABH2_BUILD)/logs
 	export MODELSIM_EXTRA_MOUNTS="$(MODELSIM_EXTRA_MOUNTS)"; \
 	$(MAKE) -C $(ARM_EXEC_TB) \
 		run \
 		TESTNAME=$(TESTNAME) \
 		SIMULATOR=$(ARM_SIM) \
 		SIM_64BIT=$(SIM_64BIT) \
-		2>&1 | tee $(LABH1_BUILD)/logs/simulation_$$(date +%Y%m%d_%H%M%S).log
+		2>&1 | tee $(LABH2_BUILD)/logs/simulation_$$(date +%Y%m%d_%H%M%S).log
+
+####################################
+# Generic H1/H2 compatibility smoke
+####################################
+designstart-smoke:
+	$(MAKE) designstart-compile
+	$(MAKE) designstart-firmware \
+		TESTNAME=pcie_host_smoke
+	$(MAKE) designstart-run \
+		TESTNAME=pcie_host_smoke
 
 ####################################
 # Full Level-3 verification
@@ -170,11 +181,13 @@ designstart-run:
 
 designstart:
 	$(MAKE) designstart-compile
-	$(MAKE) designstart-firmware
-	$(MAKE) designstart-run
+	$(MAKE) designstart-firmware \
+		TESTNAME=pcie_host_labh2
+	$(MAKE) designstart-run \
+		TESTNAME=pcie_host_labh2
 
 # Complete clean build and simulation
 designstart-all: designstart-clean
-	$(MAKE) designstart-compile
-	$(MAKE) designstart-firmware
-	$(MAKE) designstart-run
+	$(MAKE) designstart-baseline
+	$(MAKE) designstart-smoke
+	$(MAKE) designstart

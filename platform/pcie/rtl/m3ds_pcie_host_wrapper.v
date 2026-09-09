@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module m3ds_pcie_host_wrapper
 (
         // Inputs
