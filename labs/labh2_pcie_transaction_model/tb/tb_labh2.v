@@ -157,7 +157,14 @@ end
 
 initial begin
 	$dumpfile("build/labh2.vcd");
-	$dumpvars(0, tb_labh2);
+	// Focus on PCIe TLP transaction signals for Lab H2
+	$dumpvars(0, dut.u_labh1_ahb_pcie_host_bridge);      // Host bridge (Lab H1)
+	$dumpvars(1, dut.u_m3ds_pcie_backend);               // Backend interconnect wires (THIS LEVEL ONLY)
+	$dumpvars(0, dut.u_m3ds_pcie_backend.u_tlp_tx);      // TLP transmit encoder
+	$dumpvars(0, dut.u_m3ds_pcie_backend.u_endpoint);    // Endpoint model
+	$dumpvars(0, dut.u_m3ds_pcie_backend.u_tlp_rx);      // TLP receive decoder
+	// Include top-level AHB interface signals
+	$dumpvars(1, tb_labh2);
 
 	HCLK    = 1'b0;
 	HRESETn = 1'b0;

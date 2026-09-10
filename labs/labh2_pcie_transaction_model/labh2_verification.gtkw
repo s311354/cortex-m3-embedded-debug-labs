@@ -1,0 +1,173 @@
+[*]
+[*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
+[*] Thu Sep 10 02:57:30 2026
+[*]
+[dumpfile] "build/labh2.vcd"
+[savefile] "labh2_verification.gtkw"
+[timestart] 0
+[size] 1920 1080
+[pos] -1 -1
+*-14.000000 100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_labh2.
+[treeopen] tb_labh2.dut.
+[treeopen] tb_labh2.dut.u_m3ds_pcie_backend.
+[treeopen] tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.
+[sst_width] 280
+[signals_width] 230
+[sst_expanded] 1
+[sst_vpaned] 300
+
+@800200
+-Clock and Reset
+@28
+tb_labh2.HCLK
+tb_labh2.HRESETn
+@1000200
+-Clock and Reset
+
+@c00200
+-AHB-Lite Bus Transactions
+@28
+tb_labh2.HSEL
+@22
+tb_labh2.HADDR[31:0]
+@28
+tb_labh2.HTRANS[1:0]
+tb_labh2.HWRITE
+@22
+tb_labh2.HSIZE[2:0]
+tb_labh2.HWDATA[31:0]
+tb_labh2.HRDATA[31:0]
+@28
+tb_labh2.HREADYOUT
+tb_labh2.HRESP
+@1401200
+-AHB-Lite Bus Transactions
+
+@c00200
+-Host Bridge Internal State
+@22
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.control[31:0]
+@28
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.busy
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.done
+@22
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.state[1:0]
+@28
+(0)tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.state[1:0]
+(1)tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.state[1:0]
+@22
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.cfg_bdf[31:0]
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.cfg_reg[31:0]
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.cfg_wdata[31:0]
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.cfg_rdata[31:0]
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.cfg_command[31:0]
+tb_labh2.dut.u_labh1_ahb_pcie_host_bridge.error_status[31:0]
+@1401200
+-Host Bridge Internal State
+
+@c00200
+-Backend Request Interface
+@28
+tb_labh2.dut.u_m3ds_pcie_backend.req_valid
+tb_labh2.dut.u_m3ds_pcie_backend.req_ready
+@22
+tb_labh2.dut.u_m3ds_pcie_backend.req_type[1:0]
+tb_labh2.dut.u_m3ds_pcie_backend.req_bdf[31:0]
+tb_labh2.dut.u_m3ds_pcie_backend.req_reg[9:0]
+tb_labh2.dut.u_m3ds_pcie_backend.req_wdata[31:0]
+@1401200
+-Backend Request Interface
+
+@c00200
+-TLP Transmit (TX) Interface
+@28
+tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_valid
+tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_ready
+@22
+tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+@c00022
+tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+@28
+(0)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(1)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(2)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(3)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(4)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(5)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(6)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(7)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(8)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+(9)tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw0[31:0]
+@1401200
+-group_end
+@22
+tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw1[31:0]
+tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw2[31:0]
+tb_labh2.dut.u_m3ds_pcie_backend.req_tlp_dw3[31:0]
+@1401200
+-TLP Transmit (TX) Interface
+
+@c00200
+-PCIe Endpoint Internal State
+@28
+tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.pending
+@22
+tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.delay_count[1:0]
+@28
+(0)tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.delay_count[1:0]
+(1)tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.delay_count[1:0]
+@22
+tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.saved_opcode[7:0]
+tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.saved_bdf[31:0]
+tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.saved_reg[9:0]
+tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.saved_wdata[31:0]
+tb_labh2.dut.u_m3ds_pcie_backend.u_endpoint.cfg_scratch[31:0]
+@1401200
+-PCIe Endpoint Internal State
+
+@c00200
+-TLP Receive (RX) / Completion
+@28
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_valid
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_ready
+@22
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+@c00022
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+@28
+(0)tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+(1)tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+(2)tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+(3)tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+(4)tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+(5)tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+(6)tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+(7)tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw0[31:0]
+@1401200
+-group_end
+@22
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw1[31:0]
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw2[31:0]
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_tlp_dw3[31:0]
+@200
+-
+@28
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_valid
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_ready
+@22
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_status[1:0]
+tb_labh2.dut.u_m3ds_pcie_backend.cpl_rdata[31:0]
+@1401200
+-TLP Receive (RX) / Completion
+
+@c00200
+-Test Monitoring
+@22
+tb_labh2.value[31:0]
+tb_labh2.status[31:0]
+@1401200
+-Test Monitoring
+
+[pattern_trace] 1
+[pattern_trace] 0

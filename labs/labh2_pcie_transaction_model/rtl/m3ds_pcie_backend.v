@@ -41,7 +41,7 @@ wire [31:0]         cpl_tlp_dw1;
 wire [31:0]         cpl_tlp_dw2;
 wire [31:0]         cpl_tlp_dw3;
 
-labh2_pcie_tlp_tx u_tpl_tx (
+labh2_pcie_tlp_tx u_tlp_tx (
     .req_valid (req_valid),
     .req_ready (req_ready),
 
