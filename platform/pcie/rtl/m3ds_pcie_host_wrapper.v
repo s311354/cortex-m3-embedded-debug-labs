@@ -25,23 +25,24 @@ module m3ds_pcie_host_wrapper
 * Abstract PCIe request channel
 * Host Bridge -> backend
 */
+wire          req_ready;
+
 wire          req_valid;
 wire [1:0]    req_type;
 wire [31:0]   req_bdf;
 wire [9:0]    req_reg;
 wire [31:0]   req_wdata;
 
-wire          req_ready;
-
 /*
 * Abstract PCIe completion channel
 * backend -> Host Bridge
 */
-wire          cpl_ready;
 
 wire          cpl_valid;
 wire [1:0]    cpl_status;
 wire [31:0]   cpl_rdata;
+
+wire          cpl_ready;
 
 /*
 * Shared AHB-to-PCIe Host Bridge

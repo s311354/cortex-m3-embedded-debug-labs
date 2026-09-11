@@ -2,16 +2,16 @@
 
 module labh2_pcie_tlp_tx (
     input wire                req_valid,
-    output wire               req_ready,
-
     input wire [1:0]          req_type,
     input wire [31:0]         req_bdf,
     input wire [9:0]          req_reg,
     input wire [31:0]         req_wdata,
 
-    output wire               tlp_valid,
+    output wire               req_ready,
+
     input wire                tlp_ready,
 
+    output wire               tlp_valid,
     output wire [31:0]        tlp_dw0,
     output wire [31:0]        tlp_dw1,
     output wire [31:0]        tlp_dw2,

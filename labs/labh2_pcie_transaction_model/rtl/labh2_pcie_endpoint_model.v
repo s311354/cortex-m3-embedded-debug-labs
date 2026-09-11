@@ -5,18 +5,16 @@ module labh2_pcie_endpoint_model (
     input wire            resetn,
 
     input wire            req_valid,
-    output wire           req_ready,
-
-    /* verilator lint_off UNUSED */
     input wire [31:0]     req_dw0,
-    /* verilator lint_on UNUSED */
     input wire [31:0]     req_dw1,
     input wire [31:0]     req_dw2,
     input wire [31:0]     req_dw3,
 
-    output reg            cpl_valid,
+    output wire           req_ready,
+
     input wire            cpl_ready,
 
+    output reg            cpl_valid,
     output reg [31:0]     cpl_dw0,
     output reg [31:0]     cpl_dw1,
     output reg [31:0]     cpl_dw2,
@@ -52,7 +50,7 @@ reg [31:0] saved_wdata;
 
 assign req_ready = !pending && !cpl_valid;
 
-wire _unused_ok = &{1'b0, req_dw3};
+wire _unused_ok = &{1'b0, req_dw3, req_dw0[23:10]};
 
 always @(posedge clk or negedge resetn) begin
 	if (!resetn) begin
@@ -73,15 +71,9 @@ always @(posedge clk or negedge resetn) begin
 		cpl_dw3           <= 32'd0;
 	
 	end else begin
-		/* completion remains valid until accepted */
-		if (cpl_valid && cpl_ready) begin 
-			cpl_valid <= 1'b0;
-		end
-
 		if (req_valid && req_ready) begin
 			saved_opcode <= req_dw0[31:24];
 			saved_reg    <= req_dw0[9:0];
-
 			saved_bdf    <= req_dw1;
 			saved_wdata  <= req_dw2;
 
@@ -95,8 +87,8 @@ always @(posedge clk or negedge resetn) begin
 				delay_count <= delay_count - 1'b1;
 			end else begin
 				pending    <= 1'b0;
-				cpl_valid  <= 1'b1;
 
+				cpl_valid  <= 1'b1;
 				cpl_dw2    <= 32'd0;
 				cpl_dw3    <= 32'd0;
 
@@ -147,6 +139,11 @@ always @(posedge clk or negedge resetn) begin
 					cpl_dw1 <= 32'hFFFFFFFF;
 				end
 			end
+		end
+
+		/* completion remains valid until accepted */
+		if (cpl_valid && cpl_ready) begin 
+			cpl_valid <= 1'b0;
 		end
 	end
 end

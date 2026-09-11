@@ -24,7 +24,6 @@ module labh1_ahb_pcie_host_bridge (
     * Abstract PCIe request interface. 
     * Host Bridge -> backend
     */
-
     input  wire        req_ready,
 
     output wire        req_valid,
@@ -43,6 +42,15 @@ module labh1_ahb_pcie_host_bridge (
 
     output wire        cpl_ready
 );
+
+/* request FSM */
+localparam [1:0]    STATE_IDLE             = 2'd0;
+localparam [1:0]    STATE_ISSUE            = 2'd1;
+localparam [1:0]    STATE_WAIT_CPL         = 2'd2;
+
+/* backend request types */
+localparam [1:0]    REQ_CFG_READ           = 2'd0;
+localparam [1:0]    REQ_CFG_WRITE          = 2'd1;
 
 /*
 * CSR offsets.
@@ -67,10 +75,6 @@ localparam [31:0]   CONTROL_ENABLE         = 32'h00000001;
 localparam [31:0]   CMD_CFG_READ           = 32'h00000001;
 localparam [31:0]   CMD_CFG_WRITE          = 32'h00000002;
 
-/* backend request types */
-localparam [1:0]    REQ_CFG_READ           = 2'd0;
-localparam [1:0]    REQ_CFG_WRITE          = 2'd1;
-
 /* error-status bits */
 localparam [31:0]   ERR_DISABLED           = 32'h00000001;
 localparam [31:0]   ERR_BAD_COMMAND        = 32'h00000002;
@@ -78,17 +82,14 @@ localparam [31:0]   ERR_BACKEND            = 32'h00000004;
 localparam [31:0]   ERR_BUSY               = 32'h00000008;
 localparam [31:0]   ERR_BAD_ACCESS         = 32'h00000010;
 
-/* request FSM */
-localparam [1:0]    STATE_IDLE             = 2'd0;
-localparam [1:0]    STATE_ISSUE            = 2'd1;
-localparam [1:0]    STATE_WAIT_CPL         = 2'd2;
-
 // Dummy wire to acknowledge unused signal bits
 wire _unused_ok = &{1'b0, HADDR[31:16], HTRANS[0]};
 
 /*
 * Programmer-visible registers
 */
+reg [1:0]     state; // STATE_IDLE -> STATE_ISSUE -> STATE_WAIT_CPL -> STATE_IDLE
+
 reg [31:0]    control;
 
 reg           busy;
@@ -109,7 +110,6 @@ reg [31:0]    error_status;
 */
 reg           dphase_valid;
 reg           dphase_write;
-
 reg [15:0]    dphase_addr;
 reg [2:0]     dphase_size;
 
@@ -120,8 +120,6 @@ reg [1:0]     req_type_r;
 reg [31:0]    req_bdf_r;
 reg [9:0]     req_reg_r;
 reg [31:0]    req_wdata_r;
-
-reg [1:0]     state; // STATE_IDLE -> STATE_ISSUE -> STATE_WAIT_CPL -> STATE_IDLE
 
 /*
 * AHB
@@ -157,55 +155,6 @@ assign req_wdata = req_wdata_r;
 assign cpl_ready = (state == STATE_WAIT_CPL);
 
 /*
-* AHB read data phase.
-*/
-always @(*) begin
-	HRDATA = 32'h00000000;
-
-	if (dphase_valid && !dphase_write) begin
-		case (dphase_addr)
-
-			REG_VERSION:
-				HRDATA = VERSION_VALUE;
-
-			REG_CONTROL:
-				HRDATA = control;
-
-			REG_STATUS:
-				HRDATA = {
-				    29'd0,
-				    (error_status != 32'd0),
-				    done,
-				    busy
-				};
-
-			REG_CFG_BDF:
-				HRDATA = cfg_bdf;
-
-			REG_CFG_REG:
-				HRDATA = cfg_reg;
-
-			REG_CFG_WDATA:
-				HRDATA = cfg_wdata;
-
-			REG_CFG_RDATA:
-				HRDATA = cfg_rdata;
-
-			REG_CFG_COMMAND:
-				HRDATA = cfg_command;
-
-			REG_ERROR_STATUS:
-				HRDATA = error_status;
-
-			default:
-				HRDATA = 32'h00000000;
-
-		endcase
-
-	end
-end
-
-/*
 * Sequential state
 */
 always @(posedge HCLK or negedge HRESETn) begin
@@ -236,6 +185,48 @@ always @(posedge HCLK or negedge HRESETn) begin
 		req_wdata_r  <= 32'd0;
 
 	end else begin
+		/*
+		* Backend transaction FSM
+		*/
+	        case (state)
+			STATE_IDLE:
+			begin
+			end
+
+			STATE_ISSUE:
+			begin
+				if (req_ready) begin
+					state <= STATE_WAIT_CPL;
+				end
+			end
+
+			STATE_WAIT_CPL:
+			begin
+				if (cpl_valid) begin
+					state    <= STATE_IDLE;
+
+					busy    <= 1'b0;
+					done    <= 1'b1;
+
+					if (cpl_status != 2'd0) begin
+						error_status       <= ERR_BACKEND;
+					end else begin
+						error_status       <= 32'd0;
+
+						if (req_type_r == REQ_CFG_READ) begin
+							cfg_rdata  <= cpl_rdata;
+						end
+					end
+				end
+			end
+
+			default:
+	                begin
+				state    <= STATE_IDLE;
+				busy     <= 1'b0;
+			end
+		endcase
+
 	        /*
 	        * Capture the current AHB address phase.
 	        */
@@ -328,48 +319,55 @@ always @(posedge HCLK or negedge HRESETn) begin
 				endcase
 			end
 		end
+	end
+end
 
-		/*
-		* Backend transaction FSM
-		*/
-	        case (state)
-			STATE_IDLE:
-			begin
-			end
+/*
+* AHB read data phase.
+*/
+always @(*) begin
+	HRDATA = 32'h00000000;
 
-			STATE_ISSUE:
-			begin
-				if (req_ready) begin
-					state <= STATE_WAIT_CPL;
-				end
-			end
+	if (dphase_valid && !dphase_write) begin
+		case (dphase_addr)
 
-			STATE_WAIT_CPL:
-			begin
-				if (cpl_valid) begin
-					state    <= STATE_IDLE;
+			REG_VERSION:
+				HRDATA = VERSION_VALUE;
 
-					busy    <= 1'b0;
-					done    <= 1'b1;
+			REG_CONTROL:
+				HRDATA = control;
 
-					if (cpl_status != 2'd0) begin
-						error_status       <= ERR_BACKEND;
-					end else begin
-						error_status       <= 32'd0;
+			REG_STATUS:
+				HRDATA = {
+				    29'd0,
+				    (error_status != 32'd0),
+				    done,
+				    busy
+				};
 
-						if (req_type_r == REQ_CFG_READ) begin
-							cfg_rdata  <= cpl_rdata;
-						end
-					end
-				end
-			end
+			REG_CFG_BDF:
+				HRDATA = cfg_bdf;
+
+			REG_CFG_REG:
+				HRDATA = cfg_reg;
+
+			REG_CFG_WDATA:
+				HRDATA = cfg_wdata;
+
+			REG_CFG_RDATA:
+				HRDATA = cfg_rdata;
+
+			REG_CFG_COMMAND:
+				HRDATA = cfg_command;
+
+			REG_ERROR_STATUS:
+				HRDATA = error_status;
 
 			default:
-	                begin
-				state    <= STATE_IDLE;
-				busy     <= 1'b0;
-			end
+				HRDATA = 32'h00000000;
+
 		endcase
+
 	end
 end
 

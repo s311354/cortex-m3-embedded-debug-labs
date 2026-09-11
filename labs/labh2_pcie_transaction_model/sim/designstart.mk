@@ -68,7 +68,7 @@ designstart-filelist:
 	mkdir -p $(LABH2_BUILD)
 	rm -f $(LABH2_DS_FILELIST)
 	for src in $(LABH2_DS_RTL); do \
-		printf "%s\n" "$$src" >> $(LABH2_DS_FILELIST); \
+		printf "%s\n" "$$(realpath $$src)" >> $(LABH2_DS_FILELIST); \
 	done
 
 ####################################
@@ -89,6 +89,7 @@ designstart-baseline:
 designstart-compile: designstart-filelist
 	$(MAKE) -C $(ARM_EXEC_TB) clean
 
+	export MODELSIM_EXTRA_MOUNTS="$(MODELSIM_EXTRA_MOUNTS)"; \
 	$(MAKE) -C $(ARM_EXEC_TB) \
 		compile \
 		SIMULATOR=$(ARM_SIM) \

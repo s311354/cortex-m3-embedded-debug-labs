@@ -23,36 +23,37 @@ module m3ds_pcie_backend (
 * Request TLP channel
 */
 wire                req_tlp_valid;
-wire                req_tlp_ready;
-
 wire [31:0]         req_tlp_dw0;
 wire [31:0]         req_tlp_dw1;
 wire [31:0]         req_tlp_dw2;
 wire [31:0]         req_tlp_dw3;
 
+wire                req_tlp_ready;
+
 /*
 * Completion TLP channel
 */
 wire                cpl_tlp_valid;
-wire                cpl_tlp_ready;
-
 wire [31:0]         cpl_tlp_dw0;
 wire [31:0]         cpl_tlp_dw1;
 wire [31:0]         cpl_tlp_dw2;
 wire [31:0]         cpl_tlp_dw3;
 
+wire                cpl_tlp_ready;
+
+
 labh2_pcie_tlp_tx u_tlp_tx (
     .req_valid (req_valid),
-    .req_ready (req_ready),
-
     .req_type  (req_type),
     .req_bdf   (req_bdf),
     .req_reg   (req_reg),
     .req_wdata (req_wdata),
 
-    .tlp_valid (req_tlp_valid),
+    .req_ready (req_ready),
+
     .tlp_ready (req_tlp_ready),
 
+    .tlp_valid (req_tlp_valid),
     .tlp_dw0   (req_tlp_dw0),
     .tlp_dw1   (req_tlp_dw1),
     .tlp_dw2   (req_tlp_dw2),
@@ -64,16 +65,16 @@ labh2_pcie_endpoint_model u_endpoint (
     .resetn    (resetn),
 
     .req_valid (req_tlp_valid),
-    .req_ready (req_tlp_ready),
-
     .req_dw0   (req_tlp_dw0),
     .req_dw1   (req_tlp_dw1),
     .req_dw2   (req_tlp_dw2),
     .req_dw3   (req_tlp_dw3),
 
-    .cpl_valid (cpl_tlp_valid),
+    .req_ready (req_tlp_ready),
+
     .cpl_ready (cpl_tlp_ready),
 
+    .cpl_valid (cpl_tlp_valid),
     .cpl_dw0   (cpl_tlp_dw0),
     .cpl_dw1   (cpl_tlp_dw1),
     .cpl_dw2   (cpl_tlp_dw2),
@@ -82,16 +83,16 @@ labh2_pcie_endpoint_model u_endpoint (
 
 labh2_pcie_tlp_rx u_tlp_rx (
     .tlp_valid  (cpl_tlp_valid),
-    .tlp_ready  (cpl_tlp_ready),
-
     .tlp_dw0    (cpl_tlp_dw0),
     .tlp_dw1    (cpl_tlp_dw1),
     .tlp_dw2    (cpl_tlp_dw2),
     .tlp_dw3    (cpl_tlp_dw3),
 
-    .cpl_valid  (cpl_valid),
+    .tlp_ready  (cpl_tlp_ready),
+
     .cpl_ready  (cpl_ready),
 
+    .cpl_valid  (cpl_valid),
     .cpl_status (cpl_status),
     .cpl_rdata  (cpl_rdata)
 );
