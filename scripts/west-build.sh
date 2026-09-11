@@ -36,8 +36,9 @@
 set -e  # Exit on error
 
 # Default values
+WEST_TOPDIR="$(west topdir 2>/dev/null || true)"
 BOARD="${BOARD:-qemu_cortex_m3}"
-SOURCE_DIR="zephyr-header-build"
+SOURCE_DIR="${SOURCE_DIR:-${WEST_TOPDIR}/zephyr/samples/hello_world}"
 BUILD_DIR="build"
 VENV_PATH="${VENV_PATH:-${HOME}/.venvs/zephyr}"
 COMMAND=""
