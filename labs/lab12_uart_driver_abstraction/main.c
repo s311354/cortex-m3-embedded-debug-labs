@@ -1,8 +1,6 @@
-#include <stdint.h>
+#include <stdio.h>
 
-#include "uart_driver.h"
-
-extern struct uart_device uart0;
+#include "console.h"
 
 __attribute__((naked))
 void SVC_Handler(void) {
@@ -10,17 +8,20 @@ void SVC_Handler(void) {
 }
 
 int main(void) {
-    uart0.ops->init();
+    console_init();
 
-    uart0.ops->putc('A');
+    fputc('A', stdout);
+    fputc('\n', stdout);
+
+    printf("Lab12 parintf test\n");
 
     while (1) {
         int c;
 
-	c = uart0.ops->getc();
+	c = console_getc();
 
 	if (c >= 0) {
-	    uart0.ops->putc(c);
+	    console_putc((char)c);
 	}
     }
 }

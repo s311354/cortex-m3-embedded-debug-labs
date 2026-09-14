@@ -15,6 +15,8 @@ startup.s \
 $(CMSIS_MPS2_SRC)/system_CM3DS.c \
 main.c \
 runtime.c \
+retarget.c \
+console.c \
 uart.c \
 uart_driver.c 
 

@@ -108,4 +108,5 @@ SECTIONS
      } > RAM
 
     _end = .;
+    end = .;  /* Symbol required by libnosys.a */
 }
