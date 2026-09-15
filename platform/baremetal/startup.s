@@ -70,6 +70,7 @@
 .text
 
 /* Weak aliases for interrupt handlers */
+.weak MemManage_Handler
 .weak UART0_Handler
 .weak UART1_Handler
 .weak UART2_Handler
@@ -103,6 +104,7 @@
 .weak UART10_Handler
 
 /* Set all weak handlers to Default_Handler by default */
+.thumb_set MemManage_Handler, Default_Handler
 .thumb_set UART0_Handler, Default_Handler
 .thumb_set UART1_Handler, Default_Handler
 .thumb_set UART2_Handler, Default_Handler
@@ -148,10 +150,6 @@ NMI_Handler:
 
 .thumb_func
 HardFault_Handler:
-    b .
-
-.thumb_func
-MemManage_Handler:
     b .
 
 .thumb_func
