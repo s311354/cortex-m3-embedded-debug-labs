@@ -57,6 +57,25 @@ SECTIONS
 
     } > FLASH
 
+   /*---------------------------------*/
+   /* Optional RAM-executed code      */  
+   /*---------------------------------*/
+    .far_text :
+    {
+	    . = ALIGN(4);
+
+	    __far_text_start__ = .;
+
+	    KEEP(*(.far_text))
+	    KEEP(*(.far_text.*))
+
+	    . = ALIGN(4);
+
+	    __far_text_end__ = .;
+    } > RAM AT > FLASH
+
+    __far_text_load__ = LOADADDR(.far_text);
+
     /*---------------------------------*/
     /* Initialized Data                */  
     /*---------------------------------*/

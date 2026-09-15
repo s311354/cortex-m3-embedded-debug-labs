@@ -1,7 +1,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "device.h"
+
+#include "farfunc.h"
+
+volatile uint32_t g_far_result;
 
 /* Global variables to verify __libc_init_array functionality */
 volatile uint32_t g_constructor_called = 0;
@@ -29,6 +32,17 @@ int main(void) {
     if (g_constructor_called != 0x12345678 || g_constructor_count != 2) {
         // Constructor not called - __libc_init_array failed!
         while(1);
+    }
+
+
+    /*
+     * Long branch venner experiement
+     */
+    g_far_result = farfunc(0x11223344U);
+
+    if (g_far_result != 0xB487691FU) {
+        while (1) {
+	}
     }
 
     // Test dynamic allocation

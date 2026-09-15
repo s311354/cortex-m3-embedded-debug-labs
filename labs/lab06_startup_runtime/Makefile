@@ -14,6 +14,7 @@ SRC := \
 startup.s \
 $(CMSIS_MPS2_SRC)/system_CM3DS.c \
 syscalls.c \
+farfunc.c \
 main.c \
 runtime.c 
 
