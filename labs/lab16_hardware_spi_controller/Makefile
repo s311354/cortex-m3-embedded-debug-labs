@@ -19,10 +19,10 @@ LINKER_SCRIPT := $(COMMON)/linker.ld
 SRC := \
 $(CMSIS_MPS2_SRC)/system_CM3DS.c \
 main.c \
-runtime.c \
+$(COMMON)/runtime.c \
 mps2_ssp.c \
 board_ssp.c \
-startup.s
+$(COMMON)/startup.s
 
 VPATH += $(COMMON)
 

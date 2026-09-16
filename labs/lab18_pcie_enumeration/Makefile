@@ -19,12 +19,12 @@ LINKER_SCRIPT := $(COMMON)/linker.ld
 SRC := \
 $(CMSIS_MPS2_SRC)/system_CM3DS.c \
 main.c \
-runtime.c \
+$(COMMON)/runtime.c \
 pcie_host.c \
 pcie_bus.c \
 pcie_sim_host.c \
 board_pcie.c \
-startup.s
+$(COMMON)/startup.s
 
 VPATH += $(COMMON)
 
