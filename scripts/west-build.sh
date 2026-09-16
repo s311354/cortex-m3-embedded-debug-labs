@@ -35,20 +35,6 @@
 
 set -e  # Exit on error
 
-# Default values
-WEST_TOPDIR="$(west topdir 2>/dev/null || true)"
-BOARD="${BOARD:-qemu_cortex_m3}"
-SOURCE_DIR="${SOURCE_DIR:-${WEST_TOPDIR}/zephyr/samples/hello_world}"
-BUILD_DIR="build"
-VENV_PATH="${VENV_PATH:-${HOME}/.venvs/zephyr}"
-COMMAND=""
-PRISTINE=false
-AUTO_CLEAN=false
-FLASH=false
-RUN=false
-DEBUG=false
-VERBOSE=false
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -72,6 +58,18 @@ print_error() {
 print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
+
+# Default values
+VENV_PATH="${VENV_PATH:-${HOME}/.venvs/zephyr}"
+BOARD="${BOARD:-qemu_cortex_m3}"
+BUILD_DIR="build"
+COMMAND=""
+PRISTINE=false
+AUTO_CLEAN=false
+FLASH=false
+RUN=false
+DEBUG=false
+VERBOSE=false
 
 # Show help
 show_help() {
@@ -208,6 +206,10 @@ else
     print_warning "Zephyr virtual environment not found at: $VENV_PATH"
     print_info "Attempting to use system-wide west installation..."
 fi
+
+# Get west topdir after activation
+WEST_TOPDIR="$(west topdir 2>/dev/null || true)"
+SOURCE_DIR="${SOURCE_DIR:-${WEST_TOPDIR}/zephyr/samples/hello_world}"
 
 # Check if west is installed
 if ! command -v west &> /dev/null; then

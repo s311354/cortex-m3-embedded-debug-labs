@@ -11,6 +11,7 @@ QEMU    := qemu-system-arm
 
 CPU     := cortex-m3
 
+vpath %.c $(COMMON)
 vpath %.s $(COMMON)
 
 ###############################
@@ -48,10 +49,16 @@ OBJS := $(OBJS:.s=.o)
 all: $(TARGET).elf $(TARGET).bin
 
 %.o: %.c
-	$(CC) $(CFLAGS) -I$(ZEPHYR_INC) -I$(ZEPHYR_GEN_INC) -I$(ZEPHYR_GEN_ZEPHYR_INC) -I$(ZEPHYR_CMSIS6_INC) -I$(ZEPHYR_CMSIS6_CORE_INC) -I$(ZEPHYR_SOC_INC)\
-		       	-imacros $(ZEPHYR_AUTOCONF) \
-	                -I$(CMSIS_INC) -I$(CMSIS_MPS2_INC) -I$(MPS2_INC) -I$(CMSDK_DEVICE_INT) -I$(CMSDK_CM3_INC) \
-			-I$(COMMON) -c $< -o $@
+	$(CC) $(CFLAGS) \
+		$(if $(ZEPHYR_INC),-I$(ZEPHYR_INC)) \
+		$(if $(ZEPHYR_GEN_INC),-I$(ZEPHYR_GEN_INC)) \
+		$(if $(ZEPHYR_GEN_ZEPHYR_INC),-I$(ZEPHYR_GEN_ZEPHYR_INC)) \
+		$(if $(ZEPHYR_CMSIS6_INC),-I$(ZEPHYR_CMSIS6_INC)) \
+		$(if $(ZEPHYR_CMSIS6_CORE_INC),-I$(ZEPHYR_CMSIS6_CORE_INC)) \
+		$(if $(ZEPHYR_SOC_INC),-I$(ZEPHYR_SOC_INC)) \
+		$(if $(ZEPHYR_AUTOCONF),-imacros $(ZEPHYR_AUTOCONF)) \
+		-I$(CMSIS_INC) -I$(CMSIS_MPS2_INC) -I$(MPS2_INC) -I$(CMSDK_DEVICE_INT) -I$(CMSDK_CM3_INC) \
+		-I$(COMMON) -c $< -o $@
 %.o: %.s
 	$(AS) $(ASFLAGS) -c $< -o $@
 
