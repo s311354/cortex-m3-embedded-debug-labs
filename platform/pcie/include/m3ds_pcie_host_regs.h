@@ -4,8 +4,26 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* 
+ * ====================================
+ * CPU-visible PCIe Host address map
+ * ====================================
+ */
+
+/* Host Controller CSR aperture */
+// 0xA0000000 (RTL simulation) that QEMU does not support.
 #define M3DS_PCIE_HOST_BASE            0xA0000000UL
 #define M3DS_PCIE_HOST_SIZE            0x00010000UL
+
+/* Outbound PCIe MMIO aperture */
+#define M3DS_PCIE_MMIO_BASE            0x60000000UL
+#define M3DS_PCIE_MMIO_SIZE            0x10000000UL
+
+/* 
+ * ====================================
+ * Host Controller CSR ABI
+ * ====================================
+ */
 
 #define M3DS_PCIE_VERSION_VALUE        0x00010000UL
 
@@ -23,6 +41,12 @@
 #define M3DS_PCIE_ERR_BACKEND           (1UL << 2)
 #define M3DS_PCIE_ERR_BUSY              (1UL << 3)
 #define M3DS_PCIE_ERR_BAD_ACCESS        (1UL << 4)
+
+/* 
+ * ====================================
+ * PCI Bus / Device / Function encoding
+ * ====================================
+ */
 
 #define M3DS_PCIE_BDF(bus, dev, fn) \
 	((((uint32_t)(bus)  & 0xFFU) << 16U)  | \
