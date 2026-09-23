@@ -6,7 +6,7 @@ struct uart_driver_ops {
 
     void (*putc)(char c);
 
-    char (*getc)(void);
+    int (*getc)(void);
 
 };
 
@@ -16,7 +16,7 @@ struct uart_device {
 };
 
 static inline void uart_driver_init(struct uart_device *dev) {
-    return dev->ops->init();
+    dev->ops->init();
 }
 
 static inline void uart_driver_putc(struct uart_device *dev, char c) {

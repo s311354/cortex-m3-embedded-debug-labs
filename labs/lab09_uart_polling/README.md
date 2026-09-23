@@ -18,30 +18,7 @@ This lab demonstrates **polling-based UART communication** on the Cortex-M3 proc
 
 ### Memory-Mapped I/O
 
-Cortex-M3 accesses peripherals through **memory-mapped registers**. The UART peripheral exists at a fixed address in the memory map:
-
-```c
-#define UART0 ((UART_TypeDef*) CM3DS_MPS2_UART0_BASE)
-```
-
-Reading/writing to this address actually accesses hardware registers, not RAM.
-
-### UART Register Structure
-
-```c
-typedef struct {
-    volatile uint32_t DATA;       // TX/RX data register
-    volatile uint32_t STATE;      // Status flags (TX_FULL, RX_FULL)
-    volatile uint32_t CTRL;       // Control register (enable TX/RX)
-    union {
-        volatile const uint32_t INTSTATUS;  // Read: interrupt status
-        volatile uint32_t INTCLEAR;          // Write: clear interrupts
-    };
-    volatile uint32_t BAUDDIV;    // Baud rate divider
-} UART_TypeDef;
-```
-
-The `volatile` qualifier prevents compiler optimizations that could break hardware interactions.
+Cortex-M3 accesses peripherals through **memory-mapped registers**. The UART peripheral exists at a fixed address in the memory map.
 
 ### Polling Pattern
 
@@ -49,22 +26,22 @@ The `volatile` qualifier prevents compiler optimizations that could break hardwa
 
 **Advantages:**
 - Simple to implement
-- Deterministic timing (no interrupt latency)
-- No context switching overhead
+- Can provide low and predictable service latency in a dedicated tight polling loop
+- Avoids interrupt entry/exit and ISR-management overhead
 
 **Disadvantages:**
 - **Wastes CPU cycles** spinning in loops
 - CPU cannot do other work while waiting
 - Risk of buffer overflow on RX if polling too slow
-- Not suitable for real-time systems with multiple tasks
+- Blocking polling can hurt CPU utilization and task schedulability in multitasking or event-driven systems
 
-### Peripheral Initialization
+### UART Initialization Pattern
 
-Standard sequence for configuring Cortex-M3 peripherals:
+For this CMSDK UART lab, configuration follows a simple sequence:
 
-1. **Disable** peripheral (safe state)
-2. **Configure** settings (baud rate, mode)
-3. **Enable** peripheral with desired features
+1. **Disable** TX/RX and UART interrupt enables by clearing `CTRL`
+2. Program the baud-rate divider
+3. Enable TX and RX
 
 ### Baud Rate Calculation
 
@@ -76,7 +53,7 @@ BAUDDIV = 25,000,000 / 115,200 ≈ 217
 ## Implementation Details
 
 ### uart_init()
-- Resets UART to known state
+- Disables TX/RX and UART interrupt enables while configuring
 - Sets baud rate divider
 - Enables transmitter and receiver
 
@@ -97,12 +74,6 @@ BAUDDIV = 25,000,000 / 115,200 ≈ 217
 ### 1. Examine UART Registers
 
 Set breakpoint after `uart_init()`:
-
-```gdb
-(gdb) b main.c:11
-(gdb) c
-(gdb) p/x *(UART_TypeDef*)0x40004000
-```
 
 **Expected:**
 - `CTRL = 0x3` (TX_EN | RX_EN)
@@ -125,27 +96,28 @@ Step through the `while` loop and observe how it spins until `STATE.TX_FULL` cle
 ```bash
 arm-none-eabi-objdump -d lab09_uart_polling.elf | less
 ```
-
-Look at `uart_putc`:
-- The `while` loop compiles to a branch instruction
-- See the load-store operations for MMIO access
+Look for:
+- repeated loads from the volatile `STATE` register
+- big testing of the `TX_FULL` flag
+- a conditional branch implementing the polling loop
+- a store to the `DATA` register
 
 ## Comparison to Interrupt-Driven I/O
 
 | Aspect | Polling (Lab 09) | Interrupts (Lab 10) |
 |--------|------------------|---------------------|
-| CPU Efficiency | Low (busy-waiting) | High (CPU freed while waiting) |
-| Complexity | Simple | More complex (ISR, buffers) |
-| Responsiveness | Depends on poll rate | Immediate (hardware-driven) |
-| Best For | Single-task, simple I/O | Multi-tasking, async events |
+| CPU utilization waiting | Busy-waits in this implementation | CPU can perform other work or sleep |
+| Complexity | Lower | Higher: ISR/state/buffering |
+| Service latency | Depends on polling interval/workload | Depends on interrupt latency, masking and priority |
+| Typical use | Simple or short bounded waits | Asynchronous or infrequent events, concurrent work |
 
 ## Key Takeaways
 
-✓ Cortex-M3 uses **load-store architecture** for all I/O  
+✓ Cortex-M3 accesses memory-mapped peripheral registers using load/store operations 
 ✓ **Polling** trades CPU efficiency for implementation simplicity  
-✓ **Volatile** keyword is essential for hardware register access  
-✓ Proper peripheral initialization prevents hardware glitches  
-✓ Memory-mapped I/O makes peripherals look like regular memory  
+✓ **Volatile**-qualified accesses are used for MMIO registers so required hardware accesses are preserved by the compiler
+✓ Configuring a peripheral in a controlled sequence helps avoid unintended behavior during reconfiguration
+✓ Memory-mapped I/O places peripheral registers in the processor address map, but those accesses can have hardware side effects and do not behave like ordinary RAM 
 ✓ Understanding polling limitations motivates interrupt-driven designs  
 
 ## References

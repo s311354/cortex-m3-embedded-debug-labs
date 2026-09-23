@@ -13,5 +13,6 @@ int main(void) {
     uart_enable_irq();
 
     while (1) {
+        __WFI();
     }
 }

@@ -1,10 +1,10 @@
 #include "uart.h"
 
-#define UART_CTRL_TX_EN    (1u << 0)
-#define UART_CTRL_RX_EN    (1u << 1)
+#define UART_CTRL_TX_EN    CM3DS_MPS2_UART_CTRL_TXEN_Msk
+#define UART_CTRL_RX_EN    CM3DS_MPS2_UART_CTRL_RXEN_Msk
 
-#define UART_STATE_TX_FULL (1u << 0)
-#define UART_STATE_RX_FULL (1u << 0)
+#define UART_STATE_TX_FULL CM3DS_MPS2_UART_STATE_TXBF_Msk
+#define UART_STATE_RX_FULL CM3DS_MPS2_UART_STATE_RXBF_Msk
 
 void uart_init(void) {
     /* 1. Disable UART */
@@ -18,7 +18,10 @@ void uart_init(void) {
 }
 
 void uart_putc(char c) {
-    while (UART0->STATE & UART_STATE_TX_FULL);
+    while (UART0->STATE & UART_STATE_TX_FULL) {
+        /* Busy-wait until the TX buffer can accept data */
+    }
+
     UART0->DATA = (uint32_t) c;
 }
 
@@ -30,6 +33,7 @@ void uart_puts(const char *s) {
 
 char uart_getc(void) {
     while (!(UART0->STATE & UART_STATE_RX_FULL)) {
+	/* Busy-wait until the RX buffer contains data */
     }
 
     return (char) UART0->DATA;

@@ -19,7 +19,7 @@ typedef struct {
 
 void uart_init(void);
 void uart_putc(char c);
-char uart_getc(void);
+int uart_getc(void);
 
 #define UART0 ((UART_TypeDef*) CM3DS_MPS2_UART0_BASE)
 

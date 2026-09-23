@@ -8,8 +8,8 @@ void uart_init(void) {
     /* 2. Set baud rate (example: 115200 for 25MHz clock) */
     UART0->BAUDDIV = 217;
 
-    /* 3. Enable UART, TX, RX */
-    UART0->CTRL = CM3DS_MPS2_UART_CTRL_TXEN_Msk | CM3DS_MPS2_UART_CTRL_RXEN_Msk | CM3DS_MPS2_UART_CTRL_RXIRQEN_Msk;
+    /* 3. Enable TX, RX */
+    UART0->CTRL = CM3DS_MPS2_UART_CTRL_TXEN_Msk | CM3DS_MPS2_UART_CTRL_RXEN_Msk;
 }
 
 void uart_enable_irq(void) {

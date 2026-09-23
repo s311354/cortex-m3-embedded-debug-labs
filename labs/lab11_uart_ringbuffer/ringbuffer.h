@@ -2,6 +2,7 @@
 #define RINGBUFFER_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define RB_SIZE 64
 

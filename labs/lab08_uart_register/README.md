@@ -13,14 +13,14 @@ This lab introduces **Memory-Mapped I/O (MMIO)** on the Cortex-M3 architecture b
 - Follow CMSIS naming conventions
 - Perform direct register manipulation
 
-## Hardware
+## Target Platform
 
-**Platform**: ARM MPS2 + AN385 (Cortex-M3)
+**Emulated Platform**: QEMU `mps2-an385` (ARM MPS2 + AN385, Cortex-M3)
 
 **UART0 Peripheral**:
-- Base Address: `CM3DS_MPS2_UART0_BASE`
-- Clock: 25 MHz
-- Target Baud Rate: ~115200 (BaudDiv = 217)
+- Base Address: `CM3DS_MPS2_UART0_BASE` (`0x40004000`)
+- Clock: 25 MHz in the QEMU `mps2-an385` model
+- Target Baud Rate: ~115200 baud (BaudDiv = 217)
 
 ## Key Concepts
 
@@ -31,29 +31,6 @@ On Cortex-M3, peripherals are accessed through the processor's unified 4GB addre
 ```c
 UART0->DATA = 'A';  // Write character to UART transmit register
 ```
-
-### Register Structure Definition
-
-```c
-typedef struct {
-    volatile uint32_t DATA;      // 0x00: Data register
-    volatile uint32_t STATE;     // 0x04: Status register
-    volatile uint32_t CTRL;      // 0x08: Control register
-    union {                       // 0x0C: Interrupt status/clear
-        volatile const uint32_t INTSTATUS;
-        volatile uint32_t INTCLEAR;
-    };
-    volatile uint32_t BAUDDIV;   // 0x10: Baud rate divider
-} UART_TypeDef;
-```
-
-**Important Details**:
-- `volatile`: Prevents compiler optimization of hardware accesses
-- `uint32_t`: All registers are 32-bit aligned (ARMv7-M native word size)
-- Union: Same register address behaves differently on read vs write
-- `const` on INTSTATUS: Read-only access
-- Structure layout matches hardware register offsets exactly
-
 ### Baud Rate Configuration
 
 ```c
@@ -71,9 +48,9 @@ BaudDiv = UART_Clock / Desired_Baud_Rate
 
 ```c
 void uart_init(void) {
-    UART0->CTRL = 0;              // Disable UART
+    UART0->CTRL = 0;              // Disable TX/RX and UART interrupts while configuring
     UART0->BAUDDIV = 217;         // Set baud rate
-    UART0->CTRL = 0x03;           // Enable TX, RX, and UART
+    UART0->CTRL = 0x03;           // Enable TX, RX
 }
 ```
 
@@ -103,15 +80,10 @@ void uart_init(void) {
 
 ### 3. Examine Memory-Mapped Registers
 
-```gdb
-(gdb) x/5wx 0x40004000               # Examine UART0 base
-```
-
 Expected output shows the register layout:
-- 0x40004000: DATA
 - 0x40004004: STATE
 - 0x40004008: CTRL
-- 0x4000400C: INTSTATUS/INTCLEAR
+- 0x4000400C: INTSTATUS
 - 0x40004010: BAUDDIV
 
 ### 4. Verify Initialization
@@ -131,12 +103,12 @@ $1 = 0x3
 
 ## Key Takeaways
 
-- Cortex-M3 uses a unified memory map for code, data, and peripherals
-- Peripherals are accessed through memory-mapped registers
-- C structs provide type-safe hardware abstraction
-- The `volatile` keyword is essential for hardware access
-- No MMU on Cortex-M3: pointers are direct physical addresses
-- CMSIS establishes standard patterns for peripheral access
+- Cortex-M3 uses a single 4 GB processor address map containing code, data, peripheral, and system regions
+- Peripherals such as the CMSDK UART are controlled through memory-mapped registers
+- C structs provide typed, named representation of a peripheral register layout
+- MMIO registers should be accessed through appropriately `volatile`-qualified objects so required hardware accesses are preserved
+- Cortex-M3 has no MMU-based virtual-address translation; software addresses refer to the processor memory map, subject to MPU permissions and implementation-defined aliases or remapping
+- CMSIS defines standard conventions for peripheral register structures, access qualifiers, and peripheral access pointers
 
 ## Additional Resources
 

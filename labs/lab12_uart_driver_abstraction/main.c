@@ -13,7 +13,7 @@ int main(void) {
     fputc('A', stdout);
     fputc('\n', stdout);
 
-    printf("Lab12 parintf test\n");
+    printf("Lab12 printf test\n");
 
     while (1) {
         int c;

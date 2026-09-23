@@ -2,14 +2,16 @@
 
 ## Overview
 
-This lab demonstrates **interrupt-driven peripheral I/O** on the ARM Cortex-M3. Instead of polling the UART status register (busy-waiting), the CPU is interrupted automatically when data arrives, enabling efficient multitasking and reduced power consumption.
+This lab demonstrates interrupt-driven UART reception on the ARM Cortex-M3. Instead of busy-waiting for received data, the UART generates a RX interrupt when a character arrives. The RX path is interrupt-driven, while transmission still uses polling in `uart_putc()`.
+
+This allows foreground code to perform other work between receive events and introduces Cortex-M3 NVIC, vector-table, and exception-handling mechanisms.
 
 ## Learning Objectives
 
 - Understand the Cortex-M3 Nested Vectored Interrupt Controller (NVIC)
 - Configure peripheral interrupts at both hardware and NVIC levels
 - Implement an Interrupt Service Routine (ISR)
-- Learn proper ISR patterns: read status → service → clear flags
+- Learn to identify the interrupt source, service it, and acknowledge or clear it according to the peripheral's register semantics
 - Understand the hardware exception stack frame (automatic context save)
 - Debug vector table and linker issues using binutils tools
 - Compare interrupt-driven vs polling approaches
@@ -18,7 +20,9 @@ This lab demonstrates **interrupt-driven peripheral I/O** on the ARM Cortex-M3. 
 
 ### 1. NVIC (Nested Vectored Interrupt Controller)
 
-The NVIC is the Cortex-M3's interrupt controller that manages external interrupts (IRQ0-IRQ31+).
+The NVIC is integrated with the Cortex-M3 core and manages external interrupts and their enable, pending, active, and priority state.
+
+The Cortex-M3 architecture supports an implementation-defined number of external interrupts, up to 240. QEMU `mps2-an385` configures 32 external interrupt inputs (IRQ0-IRQ31)
 
 ```c
 NVIC_EnableIRQ(UART0_IRQn);  // Enable IRQ0 in NVIC
@@ -26,7 +30,8 @@ NVIC_EnableIRQ(UART0_IRQn);  // Enable IRQ0 in NVIC
 
 Key points:
 - External interrupts start at vector position 16 (byte offset 0x40)
-- UART0 is mapped to IRQ0 (first external interrupt)
+- UART0 TX is connected separately to IRQ1
+- This lab enables only the UART0 RX interrupt
 - Priority and enable/disable managed by NVIC registers
 
 ### 2. Two-Level Interrupt Enable
@@ -41,7 +46,7 @@ UART0->CTRL |= CM3DS_MPS2_UART_CTRL_RXIRQEN_Msk;
 NVIC_EnableIRQ(UART0_IRQn);
 ```
 
-Both must be enabled for interrupts to fire.
+Both the UART interrupt source and the corresponding NVIC IRQ must be enabled. The interrupt must also not be blocked by processor-level interrupt masking such as PRIMASK/BASEPRI. This lab assumes configurable interrupts are globally unmasked.
 
 ### 3. Vector Table Mechanics
 
@@ -69,19 +74,18 @@ The startup code uses the **weak symbol pattern**:
 .weak UART0_Handler
 .thumb_set UART0_Handler, Default_Handler
 ```
-
-- All interrupt handlers default to `Default_Handler` (infinite loop)
-- Strong definitions in C code (like `uart.c`) override the weak alias
+- Handlers declared with `.weak` and aliased using `.thumb_set` resolve to `Default_Handler` unless a strong definition is linked
+- A strong C definition such as `UART0_Handler()` overrides the weak alias
 - Prevents linker errors for unimplemented handlers
 - Standard practice in embedded ARM development
 
 ### 5. Hardware Exception Stack Frame
 
 When an interrupt fires, Cortex-M3 automatically pushes to stack:
-- **R0-R3**: Scratch registers
-- **R12**: Intra-procedure call register
-- **LR**: Return address
-- **PC**: Interrupted instruction
+- **R0-R3**: caller-saved registers
+- **R12**: intra-procedure-call scratch register
+- **LR**: link-register value from the interrupted context
+- **PC**: return/resume address of the interrupted context
 - **xPSR**: Processor status
 
 This happens in hardware (no software overhead). The ISR returns via special `EXC_RETURN` value in LR.
@@ -95,9 +99,9 @@ while (1) {
     uart_putc(c);          // Echo back
 }
 ```
-❌ CPU is 100% busy checking status register  
-❌ Cannot do other work while waiting  
-✓ Simpler to understand and debug
+❌Main code no longer polls the UART receive status
+❌Foreground code can perform other work between receive events
+✓ With `__WFI()`, the processor can sleep while waiting for interrupts
 
 ### Interrupt-Driven (Lab 10)
 ```c
@@ -112,7 +116,6 @@ void UART0_Handler(void) {
 ```
 ✓ CPU only active when data arrives  
 ✓ Can perform other tasks in main loop  
-✓ More power efficient  
 ❌ More complex - need proper ISR implementation
 
 ## Debugging
@@ -122,14 +125,7 @@ void UART0_Handler(void) {
 Check that `UART0_Handler` is present and not discarded:
 
 ```bash
-arm-none-eabi-nm lab10_uart_interrupt.elf | grep UART
-```
-
-Expected output:
-```
-00000172 T UART0_Handler    # Strong symbol from uart.c
-000001d2 W UART1_Handler    # Weak symbols → Default_Handler
-...
+arm-none-eabi-nm lab10_uart_interrupt.elf | grep UART0_Handler
 ```
 
 ### Verify Vector Table Entry
@@ -139,7 +135,6 @@ Check that UART0_Handler is in the vector table at position 16 (offset 0x40):
 ```bash
 arm-none-eabi-objdump -s -j .text lab10_uart_interrupt.elf
 ```
-
 Look for offset 0x40 (IRQ0):
 ```
 0040: 73010000 d3010000  → 0x173 points to UART0_Handler
@@ -154,7 +149,6 @@ If the handler isn't working, check the map file:
 ```bash
 grep "UART0_Handler" lab10_uart_interrupt.map
 ```
-
 Should show the handler in the `.text` section, NOT in "Discarded input sections".
 
 ## References
@@ -166,11 +160,13 @@ Should show the handler in the `.text` section, NOT in "Discarded input sections
 
 ## Summary
 
-This lab demonstrates the complete Cortex-M3 interrupt chain:
+This lab demonstrates the Cortex-M3 UART RX interrupt path:
 
-1. **Peripheral** (UART) generates interrupt signal
-2. **NVIC** routes interrupt to CPU core
-3. **Vector Table** directs CPU to handler function
-4. **Hardware** automatically saves context
-5. **ISR** services interrupt and clears flags
-6. **Hardware** automatically restores context and returns
+1. The UART receives a character and asserts its enabled RX interrupt
+2. The corresponding NVIC interrupt input (UART0 RX = IRQ0 on AN385) becomes pending  
+3. If the IRQ is enabled and not masked, the Cortex-M3 takes the exception
+4. The processor automatically stacks the basic exception frame and fetches the handler address from vector-table entry 16
+5. `UART0_Handler()` reads the interrupt status, receives the byte, and acknowledges the RX interrupt through the UART `INTCLEAR` register
+6. The handler echoes the character using the polling-based TX function
+
+The RX path is interrupt-driven; the TX path remains polling-based in this lab.

@@ -32,7 +32,7 @@
 .word SysTick_Handler
 
 /* External Interrupts (IRQ0 - IRQ31) */
-.word UART0_Handler            /* IRQ0: UART0 */
+.word UART0_Handler            /* IRQ0: UART0, used as the handler for the UART0 RX interrupt on IRQ0 in this lab */
 .word UART1_Handler            /* IRQ1: UART1 */
 .word UART2_Handler            /* IRQ2: UART2 */
 .word UART3_Handler            /* IRQ3: UART3 */
