@@ -1,0 +1,18 @@
+/*
+* UART0 normally uses:
+*    compatible = "arm,cmsdk-uart";
+*
+* Lab20 replaces only the driver binding.
+*
+* The existing:
+*     reg
+*     interrupts
+*     clocks
+*     current-speed
+*
+* properties remain inherited from the MPS2 board DTS
+*/
+&uart0 {
+    compatible = "lab20,cmsdk-uart-async";
+    status = "okay";
+};

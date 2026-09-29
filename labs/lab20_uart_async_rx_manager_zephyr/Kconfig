@@ -1,0 +1,14 @@
+mainmenu "Lab20 UART Async RX Manager"
+source "Kconfig.zephyr"
+
+config LAB20_CMSDK_UART_ASYNC
+	bool "Lab20 interrupt-backed CMSDK UART asynchronous RX"
+	default y
+	depends on SERIAL && CPU_CORTEX_M3 && !SMP
+	depends on DT_HAS_LAB20_CMSDK_UART_ASYNC_ENABLED
+	select SERIAL_HAS_DRIVER
+	select SERIAL_SUPPORT_ASYNC
+	help
+	  Lab-local RX implementation of the Zephyr UART asynchronous API.
+	  Uses UART RX interrupts, not DMA. Only SYS_FOREVER_US is supported.
+	  All events are delivered by the UART ISR; callbacks must not block.

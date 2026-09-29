@@ -1,0 +1,55 @@
+###############################
+# Tool / Configuration
+###############################
+
+OBJDUMP ?= arm-none-eabi-objdump
+GDB     ?= gdb-multiarch
+
+BOARD     ?= mps2/an385
+BUILD_DIR ?= build
+VENV_PATH ?= $(HOME)/.venvs/zephyr
+
+WEST_BUILD := $(PROJECT_ROOT)/scripts/west-build.sh
+ZEPHYR_ELF := $(BUILD_DIR)/zephyr/zephyr.elf
+
+###############################
+# Build Rules
+###############################
+
+all:
+	@PROJECT_ROOT="$(PROJECT_ROOT)" VENV_PATH="$(VENV_PATH)" \
+	bash "$(WEST_BUILD)" \
+		-b "$(BOARD)" \
+		-s . \
+		--build-dir "$(BUILD_DIR)"
+
+dump: all
+	$(OBJDUMP) -d -S "$(ZEPHYR_ELF)"
+
+debug: all
+	@set -eu; \
+	if [ -f "$(VENV_PATH)/bin/activate" ]; then \
+		. "$(VENV_PATH)/bin/activate"; \
+	fi; \
+	west build -d "$(BUILD_DIR)" -t debugserver
+
+gdb:
+	@test -f "$(ZEPHYR_ELF)" || { \
+		echo "Error: $(ZEPHYR_ELF) not found. Build the lab first." >&2; \
+		exit 1; \
+	}
+	$(GDB) "$(ZEPHYR_ELF)" -ex "target remote 127.0.0.1:1234"
+
+run: all
+	@set -eu; \
+	if [ -f "$(VENV_PATH)/bin/activate" ]; then \
+		. "$(VENV_PATH)/bin/activate"; \
+	fi; \
+	west build -d "$(BUILD_DIR)" -r run
+
+clean:
+	@case "$(abspath $(BUILD_DIR))" in \
+		"$(CURDIR)"/*) ;; \
+		*) echo "Error: clean requires BUILD_DIR inside $(CURDIR)." >&2; exit 1 ;; \
+	esac
+	rm -rf -- "$(BUILD_DIR)"
