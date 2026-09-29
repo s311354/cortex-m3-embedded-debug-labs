@@ -46,14 +46,6 @@ BaudDiv = UART_Clock / Desired_Baud_Rate
 
 ### UART Initialization
 
-```c
-void uart_init(void) {
-    UART0->CTRL = 0;              // Disable TX/RX and UART interrupts while configuring
-    UART0->BAUDDIV = 217;         // Set baud rate
-    UART0->CTRL = 0x03;           // Enable TX, RX
-}
-```
-
 **CTRL Register Bits**:
 - Bit 0: Enable TX
 - Bit 1: Enable RX

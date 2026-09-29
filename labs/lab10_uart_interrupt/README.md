@@ -10,7 +10,7 @@ This allows foreground code to perform other work between receive events and int
 
 - Understand the Cortex-M3 Nested Vectored Interrupt Controller (NVIC)
 - Configure peripheral interrupts at both hardware and NVIC levels
-- Implement an Interrupt Service Routine (ISR)
+- Implement an Interrupt Service Routine (ISR), `UART0_Handler()`
 - Learn to identify the interrupt source, service it, and acknowledge or clear it according to the peripheral's register semantics
 - Understand the hardware exception stack frame (automatic context save)
 - Debug vector table and linker issues using binutils tools

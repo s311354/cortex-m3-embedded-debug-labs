@@ -13,5 +13,6 @@ int main(void) {
     UART0->DATA = 'A';
 
     while (1) {
+        __WFI();
     }
 }

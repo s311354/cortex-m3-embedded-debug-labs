@@ -12,13 +12,13 @@ static ringbuffer_t rx_rb;
 static volatile bool rx_overflow;
 
 void UART0_Handler(void) {
-    char c = UART0->DATA & CM3DS_MPS2_UART_DATA_Msk;
+    /* RX interrupt: read received byte */
+    char c = (uint8_t) UART0->DATA & CM3DS_MPS2_UART_DATA_Msk;
+
+    UART0->INTCLEAR = CM3DS_MPS2_UART_CTRL_RXIRQ_Msk;
 
     if (!rb_push(&rx_rb, c))
 	rx_overflow = true;
-
-
-    UART0->INTCLEAR = CM3DS_MPS2_UART_CTRL_RXIRQ_Msk;
 }
 
 int main(void) {
@@ -32,6 +32,7 @@ int main(void) {
     uart_enable_irq();
 
     while (1) {
+	/* TX polling */
         if (rb_pop(&rx_rb, &c))
 	    uart_putc(c);
     }

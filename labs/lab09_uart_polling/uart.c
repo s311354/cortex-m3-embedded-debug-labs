@@ -36,5 +36,5 @@ char uart_getc(void) {
 	/* Busy-wait until the RX buffer contains data */
     }
 
-    return (char) UART0->DATA;
+    return (char) (UART0->DATA & CM3DS_MPS2_UART_DATA_Msk);
 }

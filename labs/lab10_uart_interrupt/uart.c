@@ -19,6 +19,7 @@ void uart_enable_irq(void) {
 
 void uart_putc(char c) {
     while (UART0->STATE & CM3DS_MPS2_UART_STATE_TXBF_Msk) {
+        /* Busy-wait until the TX buffer can accept data */
     }
 
     UART0->DATA = (uint32_t) c;
@@ -32,6 +33,7 @@ void uart_puts(const char *s) {
 
 char uart_getc(void) {
     while (!(UART0->STATE & CM3DS_MPS2_UART_STATE_RXBF_Msk)) {
+	/* Busy-wait until the RX buffer contains data */
     }
 
     return (char) (UART0->DATA & CM3DS_MPS2_UART_DATA_Msk);
@@ -41,13 +43,17 @@ void UART0_Handler(void) {
     uint32_t status = UART0->INTSTATUS;
 
     if (status & CM3DS_MPS2_UART_CTRL_RXIRQ_Msk) {
+	/* RX interrupt: read received byte */
         char c = UART0->DATA & CM3DS_MPS2_UART_DATA_Msk;
 
 	UART0->INTCLEAR = CM3DS_MPS2_UART_CTRL_RXIRQ_Msk;
 
+	/* TX polling: echo received byte */
         uart_putc(c);
     }
 
-    if (status & CM3DS_MPS2_UART_CTRL_RXORIRQ_Msk)
+    if (status & CM3DS_MPS2_UART_CTRL_RXORIRQ_Msk) {
+	/* clear RX overrun interrupt */
         UART0->INTCLEAR = CM3DS_MPS2_UART_CTRL_RXORIRQ_Msk;
+    }
 }

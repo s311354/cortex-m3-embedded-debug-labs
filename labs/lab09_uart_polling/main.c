@@ -13,5 +13,6 @@ int main(void) {
     uart_puts("Hello Cortex-M3\r\n");
 
     while (1) {
+	__WFI();
     }
 }

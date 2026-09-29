@@ -18,6 +18,7 @@ int main(void) {
     while (1) {
         int c;
 
+	/* RX Polling */
 	c = console_getc();
 
 	if (c >= 0) {
