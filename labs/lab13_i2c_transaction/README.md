@@ -2,15 +2,15 @@
 
 ## Overview
 
-This lab demonstrates **software I2C (bit-banging)** implementation on the ARM Cortex-M3. Instead of using a full-featured I2C hardware controller, the code manually controls the I2C bus lines (SCL and SDA) to implement the I2C protocol timing and signaling in software. This technique is valuable when full I2C hardware is unavailable, already in use, or when debugging I2C bus issues.
+This lab demonstrates a blocking, write-only software I2C transaction on a Cortex-M3 target. It operates the SCL/SDA set/clear interface at `0x4002A000` (Audio Shield 1) through a minimal I2C peripheral controller. It is a bare-metal lab, not a Zephyr application.
 
-The MPS2 platform provides a minimal I2C peripheral (`CM3DS_MPS2_I2C`) that exposes only basic pin control through two registers. The peripheral has two dedicated pins (SCL and SDA) for I2C communication with the on-board audio codec. Unlike full-featured I2C hardware controllers found in production microcontrollers, this peripheral provides no automatic protocol generation - all I2C logic (START/STOP conditions, byte transmission, ACK/NACK) must be implemented in software.
+The MPS2/AN385 address map provides multiple I2C-compatible interfaces for audio configuration and shield expansion headers. This lab uses the AUDIOSH1 interface. The sample's address `0x50` is an illustrative EEPROM-style target address; it is not an identification of the on-board codec. The exact target part and its register protocol must be checked before using this example on hardware.
 
 ## Learning Objectives
 
 - Understand I2C protocol fundamentals (START, STOP, ACK/NACK)
 - Implement software-based I2C (bit-banging) using a minimal pin controller
-- Learn precise timing control with software delays
+- Understand software delay loops and their timing limitations
 - Understand memory-mapped I/O for peripheral control
 - Design transaction-based peripheral driver APIs
 - Use compiler attributes for optimization control
@@ -36,16 +36,21 @@ typedef struct {
 #define CM3DS_MPS2_I2C_SDA_Pos  1
 #define CM3DS_MPS2_I2C_SDA_Msk  (1UL << CM3DS_MPS2_I2C_SDA_Pos)  // 0x00000002
 
-// Peripheral instance mapped to Audio Configuration base address
-#define CM3DS_MPS2_I2C  ((CM3DS_MPS2_I2C_TypeDef *) 0x40023000UL)
+// This lab uses Audio Shield 1 I2C interface
+#define LAB13_I2C ((CM3DS_MPS2_I2C_TypeDef *) CM3DS_MPS2_AUDIOSH1_BASE)
+// Note: CM3DS_MPS2_AUDIOSH1_BASE = 0x4002A000UL
 ```
 
 **Key Points**:
-- Peripheral mapped to address `0x40023000` (AUDIOCFG_BASE)
-- Used for I2C communication with audio codec on MPS2 board
+- This lab uses the Audio Shield 1 I2C interface at address `0x4002A000` (AUDIOSH1_BASE)
+- The MPS2 platform provides multiple I2C-compatible interfaces:
+  - AUDIOCFG (0x40023000) - Primary audio codec configuration
+  - AUDIOSH0 (0x40029000) - Audio Shield 0
+  - AUDIOSH1 (0x4002A000) - Audio Shield 1 (**used in this lab**)
+- Used for I2C communication with devices on audio shield expansion connector
 - Only 2 registers: `CONTROL` and `CONTROLC`
-- Writing to `CONTROL` sets bits HIGH (outputs 1)
-- Writing to `CONTROLC` clears bits LOW (outputs 0) - atomic operation
+- Writing to `CONTROL` releases the corresponding SCL/SDA line toward HIGH
+- Writing to `CONTROLC` actively drives the corresponding line LOW
 - Reading `CONTROL` returns current pin state
 - Bit 0: SCL (I2C Clock Line)
 - Bit 1: SDA (I2C Data Line)
@@ -53,17 +58,17 @@ typedef struct {
 
 ### 2. Software Timing with Volatile
 
-Creating precise delays without hardware timers:
+Creating software delays without hardware timers:
 
 **Why This Works**:
-- `volatile` prevents compiler optimization of the loop
-- Inline assembly `nop` creates predictable CPU cycles
-- Loop count determines I2C clock speed
-- Each `nop` = 1 CPU cycle on Cortex-M3
+- `volatile` forces accesses to the loop counter and prevents the delay loop from being optimized away
+- Inline assembly `nop` keeps an explicit no-operation instruction in each loop iteration
+- Loop count contributes to the delay, but does not by itself determine the exact I2C clock speed
+- Total delay also includes loop-control instructions, function calls, MMIO accesses, and execution-environment effects
 
 **I2C Timing Requirements**:
-- Standard mode: 100 kHz (10 μs period)
-- Fast mode: 400 kHz (2.5 μs period)
+- Standard mode: up to 100 kHz (10 μs period at 100 kHz)
+- Fast mode: up to 400 kHz (2.5 μs period at 400 kHz)
 - Delay must accommodate setup/hold times
 
 ### 3. Bit-Banging I2C Protocol
@@ -73,8 +78,8 @@ Manual implementation of I2C signaling conditions:
 #### Byte Transmission
 
 **I2C Protocol Rules**:
-- Data changes only when SCL is LOW
-- Data stable when SCL is HIGH
+- During normal data-bit transfer, data changes when SCL is LOW
+- Data remains stable when SCL is HIGH during data/ACK bits; START and STOP are exceptions
 - MSB transmitted first
 - 9th clock cycle for ACK/NACK
 
@@ -82,12 +87,13 @@ Manual implementation of I2C signaling conditions:
 
 **Purpose**:
 - `noinline`: Prevents function inlining, useful for:
-  - Setting GDB breakpoints
-  - Ensuring predictable timing
-  - Profiling specific operations
-- `unused`: Suppresses warnings for conditionally-used functions
-  - Functions controlled by `#if` macros
-  - Debug-only helpers
+  - Setting GDB breakpoints on specific I2C protocol steps
+  - Preserving visible function boundaries for debugging
+  - Step-by-step protocol analysis
+  - Applied to: `i2c_start()`, `i2c_restart()`, `i2c_stop()`, `i2c_send_byte()`, `i2c_receive_ack()`, `i2c_transfer_bitbang()`
+- `unused`: Suppresses compiler warnings for functions that may appear unused in simple analysis
+  - Applied to `i2c_sda_read()` which is used in `i2c_receive_ack()`
+  - Useful when compiler optimization or static analysis doesn't recognize all call paths
 
 ### 5. Transaction-Based API Design
 
@@ -102,10 +108,24 @@ struct i2c_msg {
 ```
 
 **Advantages**:
-- Supports complex multi-message transactions
+- Supports multi-message write transactions with explicit repeated START
 - Clean separation between protocol and application
 - Similar to Linux kernel I2C API
-- Enables combined read/write operations
+- Read payload handling is not implemented; read messages return `I2C_ERR_UNSUPPORTED`
+
+**Error Codes**:
+```c
+#define I2C_OK               0   // Success
+#define I2C_ERR_ARGUMENT    -1   // Invalid argument (NULL pointer, zero length)
+#define I2C_ERR_ADDRESS     -2   // Invalid I2C address (> 0x7F)
+#define I2C_ERR_NACK        -3   // Target device did not acknowledge
+#define I2C_ERR_UNSUPPORTED -4   // Unsupported operation (e.g., read)
+```
+
+**Error Handling**:
+- All error paths issue `i2c_stop()` to properly release the bus
+- Errors return negative values, success returns 0
+- `g_i2c_result` global variable stores the transaction result for debugging
 
 ### 6. I2C Addressing
 
@@ -126,6 +146,8 @@ START → [0xA0] → ACK → [0x10] → ACK → [0xAB] → ACK → STOP
       Address+W     Reg Addr      Data Value
 ```
 
+**Note**: The ACK/NACK response depends on whether a target device at address 0x50 responds on the I2C bus. In QEMU with the AT24C EEPROM device configured (via `QEMU_EXTRA_FLAGS`), the target will respond with ACK. Without a responding device, NACK will be detected.
+
 ## Debug Session
 
 ```gdb
@@ -141,19 +163,21 @@ START → [0xA0] → ACK → [0x10] → ACK → [0xAB] → ACK → STOP
 (gdb) next
 (gdb) step
 
-# Inspect I2C peripheral state
-(gdb) print/x CM3DS_MPS2_I2C->CONTROL
-$1 = 0x3
+# Inspect I2C peripheral state at Audio Shield 1 interface (0x4002A000)
+(gdb) print/x ((CM3DS_MPS2_I2C_TypeDef*)0x4002A000)->CONTROL
+$1 = 0x3  # Both SCL and SDA idle/HIGH
 
 # Watch data being shifted
 (gdb) break i2c_send_byte
 (gdb) continue
 (gdb) print/x value
-$2 = 0xa0
+$2 = 0xa0  # Address byte: 0x50 << 1 | 0 (write)
 
 # Check result
 (gdb) print g_i2c_result
-$3 = 0    # I2C_OK
+$3 = 0    # I2C_OK (if EEPROM device responds with ACK)
+# or
+$3 = -3   # I2C_ERR_NACK (if no device at address 0x50)
 ```
 
 ## Key Observations
@@ -163,49 +187,55 @@ $3 = 0    # I2C_OK
 The peripheral has only two 32-bit registers:
 
 **CONTROL Register** (Offset: 0x000 - Read/Write):
-- **Write**: Sets specified bits HIGH (logic 1)
+- **Write**: Releases the specified SCL/SDA output control bit toward HIGH
 - **Read**: Returns current pin state
 
 **CONTROLC Register** (Offset: 0x004 - Write-Only):
-- **Write**: Clears specified bits LOW (logic 0)
-- Atomic operation - no read-modify-write needed
+- **Write**: Drives the specified SCL/SDA output control bit LOW
+- No software read-modify-write needed
 
 **Why This Register Design?**
 
-This **Set/Clear register pattern** provides simple, atomic bit manipulation:
-- **Atomic operations**: Single instruction, no race conditions
-- **Interrupt-safe**: No need for critical sections or read-modify-write
+This **Set/Clear register pattern** provides simple bit manipulation:
+- **Direct bit updates**: Set/clear writes avoid a software read-modify-write sequence
+- **Transaction synchronization**:  Individual register writes do not make the complete I2C transaction atomic; the bus still requires a single owner at a time
 - **Minimal hardware**: Reduces FPGA resource usage on MPS2 platform
-- **Simple interface**: Just set bits HIGH or clear bits LOW
+- **Simple interface**: Release lines toward HIGH or drive them LOW
 
 **Register State Table**:
 
 | Operation | Register | Value | Bit Pattern | Result |
 |-----------|----------|-------|-------------|--------|
-| SCL HIGH | CONTROL | 0x01 | `0b00000001` | SCL=1 |
-| SDA HIGH | CONTROL | 0x02 | `0b00000010` | SDA=1 |
-| Both HIGH | CONTROL | 0x03 | `0b00000011` | SCL=1, SDA=1 |
-| SCL LOW | CONTROLC | 0x01 | `0b00000001` | SCL=0 |
-| SDA LOW | CONTROLC | 0x02 | `0b00000010` | SDA=0 |
-| Both LOW | CONTROLC | 0x03 | `0b00000011` | SCL=0, SDA=0 |
+| SCL HIGH | CONTROL | 0x01 | `0b00000001` | Release SCL |
+| SDA HIGH | CONTROL | 0x02 | `0b00000010` | Release SDA |
+| Both HIGH | CONTROL | 0x03 | `0b00000011` | Release SCL and SDA |
+| SCL LOW | CONTROLC | 0x01 | `0b00000001` | Drive SCL LOW |
+| SDA LOW | CONTROLC | 0x02 | `0b00000010` | Drive SDA LOW |
+| Both LOW | CONTROLC | 0x03 | `0b00000011` | Drive SCL and SDA LOW |
 
-### Simulated ACK Mode
+### ACK/NACK Detection
 
-**Why Simulate**:
-- No physical I2C device in QEMU emulation
-- Allows testing protocol logic
-- Set to `0` for real hardware debugging
+The implementation reads the actual ACK/NACK from the I2C bus by sampling the SDA line during the 9th clock cycle. The `i2c_receive_ack()` function:
+1. Releases SDA (allows target device to pull it LOW for ACK)
+2. Raises SCL (9th clock pulse)
+3. Reads SDA state (LOW = ACK, HIGH = NACK)
+4. Lowers SCL
+
+**QEMU Configuration**:
+- The Makefile includes `QEMU_EXTRA_FLAGS := -device at24c-eeprom,address=0x50,rom-size=256`
+- This configures a virtual AT24C EEPROM device that will respond to address 0x50
+- Without this device, NACK will be returned as no target responds
 
 ### What This Peripheral Is (and Isn't)
 
-**CM3DS_MPS2_I2C is:**
+**MPS2 I2C Interface is:**
 - ✓ A minimal 2-pin controller for I2C bit-banging
-- ✓ Mapped to audio configuration address space (0x40023000)
-- ✓ Used for configuring the audio codec on MPS2 board
-- ✓ Provides atomic set/clear operations
+- ✓ Multiple instances available (AUDIOCFG, AUDIOSH0, AUDIOSH1)
+- ✓ This lab uses Audio Shield 1 interface (0x4002A000)
+- ✓ Provides set/clear registers that avoid software read-modify-write for line control
 - ✓ Suitable for low-speed control interfaces
 
-**CM3DS_MPS2_I2C is NOT:**
+**MPS2 I2C Interface is NOT:**
 - ❌ A full I2C hardware controller
 - ❌ Capable of automatic protocol generation
 - ❌ Equipped with shift registers or ACK detection
@@ -243,11 +273,11 @@ This design is typical for **FPGA-based prototyping platforms** where simplified
 ## Key Takeaways
 
 1. **Minimal Peripheral Interface**: MPS2_I2C provides only basic pin control, not full I2C hardware
-2. **Timing Precision**: `volatile` and inline assembly create predictable delays
+2. **Software Timing**: `volatile` and inline assembly preserve a busy-wait delay, but exact bus timing must be measured or calibrated
 3. **Protocol State Machine**: I2C requires careful sequencing of signal transitions
 4. **Transaction Abstraction**: Message-based APIs separate protocol from application
-5. **Compiler Control**: Attributes like `noinline` critical for timing and debugging
-6. **Error Handling**: Protocol errors require clean bus state recovery
+5. **Compiler Control**: Attributes like `noinline` are useful for debugging but do not guarantee execution timing
+6. **Error Handling**: Error paths issues STOP, but full stuck-bus recovery is not implemented
 7. **Trade-offs**: Software flexibility vs hardware efficiency
 
 ## References

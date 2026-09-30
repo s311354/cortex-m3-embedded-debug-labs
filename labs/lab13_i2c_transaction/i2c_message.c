@@ -3,12 +3,14 @@
 
 #include "i2c_message.h"
 
+#define LAB13_I2C ((CM3DS_MPS2_I2C_TypeDef *) CM3DS_MPS2_AUDIOSH1_BASE)
+
 /**
  * @file i2c_message.c
  * @brief Software I2C implementation for CM3DS_MPS2 minimal I2C controller
  * 
  * Hardware Details:
- * - Peripheral: CM3DS_MPS2_I2C @ 0x40023000 (AUDIOCFG_BASE)
+ * - Peripheral: CM3DS_MPS2 I2C @ 0x4002A000 (AUDIOSH1_BASE)
  * - Pins: Dedicated I2C pins (SCL=bit0, SDA=bit1)
  * - Registers: CONTROL (set bits) and CONTROLC (clear bits) for atomic operations
  * - Protocol: No automatic generation - software bit-banging required
@@ -16,8 +18,6 @@
  * Note: This is a minimal I2C controller for educational purposes and FPGA
  * resource efficiency. Production systems typically use full I2C hardware.
  */
-
-#define I2C_SIMULATE_ACK 1
 
 static void i2c_delay(void) {
     volatile uint32_t i;
@@ -34,7 +34,7 @@ static void i2c_delay(void) {
  * CONTROL register behavior: Writing 1 to a bit sets it HIGH.
  */
 static void i2c_scl_high(void) {
-    CM3DS_MPS2_I2C->CONTROL = CM3DS_MPS2_I2C_SCL_Msk;
+    LAB13_I2C->CONTROL = CM3DS_MPS2_I2C_SCL_Msk;
 
     i2c_delay();
 }
@@ -46,7 +46,7 @@ static void i2c_scl_high(void) {
  * CONTROLC register provides atomic bit clearing operation.
  */
 static void i2c_scl_low(void) {
-    CM3DS_MPS2_I2C->CONTROLC = CM3DS_MPS2_I2C_SCL_Msk;
+    LAB13_I2C->CONTROLC = CM3DS_MPS2_I2C_SCL_Msk;
 
     i2c_delay();
 }
@@ -59,7 +59,7 @@ static void i2c_scl_low(void) {
  * allowing the slave device to pull it LOW (with external pull-ups).
  */
 static void i2c_sda_high(void) {
-    CM3DS_MPS2_I2C->CONTROL = CM3DS_MPS2_I2C_SDA_Msk;
+    LAB13_I2C->CONTROL = CM3DS_MPS2_I2C_SDA_Msk;
 
     i2c_delay();
 }
@@ -70,7 +70,7 @@ static void i2c_sda_high(void) {
  * Writes to CONTROLC register to clear bit 1 (SDA).
  */
 static void i2c_sda_low(void) {
-    CM3DS_MPS2_I2C->CONTROLC = CM3DS_MPS2_I2C_SDA_Msk;
+    LAB13_I2C->CONTROLC = CM3DS_MPS2_I2C_SDA_Msk;
 
     i2c_delay();
 }
@@ -85,7 +85,7 @@ static void i2c_sda_low(void) {
  */
 __attribute__((unused))
 static int i2c_sda_read(void) {
-    return ((CM3DS_MPS2_I2C->CONTROL & CM3DS_MPS2_I2C_SDA_Msk) != 0U);
+    return ((LAB13_I2C->CONTROL & CM3DS_MPS2_I2C_SDA_Msk) != 0U);
 }
 
 static void i2c_bus_idle(void) {
@@ -141,14 +141,13 @@ __attribute__((noinline))
 static int i2c_receive_ack(void) {
     int nack;
 
+    /* Release SDA so the slave can drive it during the ACK bit */
     i2c_sda_high();
+
+    /* ACK/NACK is sampled during the 9th clock while SCL is HIGH */
     i2c_scl_high();
 
-#if I2C_SIMULATE_ACK
-    nack = 0;
-#else
     nack = i2c_sda_read();
-#endif
 
     i2c_scl_low();
 
@@ -158,9 +157,11 @@ static int i2c_receive_ack(void) {
 static int i2c_send_address(uint8_t target_addr, int is_read) {
     uint8_t address_byte;
 
+    // 7-bit address
     if (target_addr > 0x7FU)
         return I2C_ERR_ADDRESS;
 
+    // R/W bit
     address_byte = (uint8_t) ((target_addr << 1U) | (is_read != 0 ? 1U : 0U));
 
     i2c_send_byte(address_byte);

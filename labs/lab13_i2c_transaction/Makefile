@@ -1,6 +1,8 @@
 TARGET := lab13_i2c_transaction
 PLATFORM := baremetal
 
+QEMU_EXTRA_FLAGS := \
+		    -device at24c-eeprom,address=0x50,rom-size=256
 COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)
 
 CORTEX_ROOT := ../../../ARM_M3_design

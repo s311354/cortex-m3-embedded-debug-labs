@@ -9,6 +9,7 @@ SIZE    := arm-none-eabi-size
 
 GDB     := gdb-multiarch
 QEMU    := qemu-system-arm
+QEMU_EXTRA_FLAGS ?=
 
 CPU     := cortex-m3
 
@@ -109,6 +110,7 @@ debug: $(TARGET).elf
 	$(QEMU) \
 		-M mps2-an385 \
 		-cpu $(CPU) \
+		$(QEMU_EXTRA_FLAGS) \
 		-S \
 		-gdb tcp::1234 \
 		-nographic \
@@ -123,6 +125,7 @@ run: $(TARGET).elf
 	$(QEMU) \
 		-M mps2-an385 \
 		-cpu $(CPU) \
+		$(QEMU_EXTRA_FLAGS) \
 		-nographic \
 		-serial mon:stdio \
 		-kernel $<
