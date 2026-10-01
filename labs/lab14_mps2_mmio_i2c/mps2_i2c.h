@@ -30,16 +30,6 @@ struct mps2_i2c_bus {
   MPS2_I2C_TypeDef *regs;     /**< Pointer to MPS2 I2C peripheral registers */
   uint32_t delay_cycles;      /**< Software timing parameter for bit delay */
   uint32_t timeout_cycles;    /**< Clock stretching timeout limit */
-  
-  /**
-   * Simulation mode flag
-   * 1: Simulate ideal bus behavior (for QEMU without physical I2C device)
-   *    - SCL always reads high
-   *    - SDA always reads high
-   *    - Slave always ACKs
-   * 0: Read actual MPS2 I2C peripheral line status
-   */
-  uint8_t  simulate_bus;
 };
 
 struct mps2_i2c_msg {

@@ -1,10 +1,19 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "mps2_i2c.h"
 
 #define MPS2_I2C_SDA_MASK ((uint32_t)(SDA))
 #define MPS2_I2C_SCL_MASK ((uint32_t)(SCL))
+#define MPS2_I2C_LINES (MPS2_I2C_SDA_MASK | MPS2_I2C_SCL_MASK)
+
+
+_Static_assert(offsetof(MPS2_I2C_TypeDef, CONTROL) == 0, "CONTROL offset");
+
+static int bus_valid(const struct mps2_i2c_bus *bus) {
+    return bus != NULL && bus->regs != NULL && bus->delay_cycles != 0U && bus->timeout_cycles != 0U;
+}
 
 /**
  * Software delay for I2C bit timing
@@ -13,9 +22,7 @@
  * MPS2 I2C peripheral has no built-in baud rate generator.
  */
 static void mps2_i2c_bit_delay(const struct mps2_i2c_bus *bus) {
-  volatile uint32_t count;
-
-  for (count = 0U; count < bus->delay_cycles; ++count)
+  for (volatile uint32_t count = 0U; count < bus->delay_cycles; ++count)
     __NOP();
 }
 
@@ -23,12 +30,8 @@ static void mps2_i2c_bit_delay(const struct mps2_i2c_bus *bus) {
  * Read SDA line state from MPS2 I2C peripheral
  * 
  * Uses CONTROL register to read current SDA pin state.
- * In simulation mode, returns high to simulate ideal bus.
  */
 static int sda_is_high(const struct mps2_i2c_bus *bus) {
-  if (bus->simulate_bus != 0U)
-    return 1;
-
   return ((bus->regs->CONTROL & MPS2_I2C_SDA_MASK) != 0U);
 }
 
@@ -39,9 +42,6 @@ static int sda_is_high(const struct mps2_i2c_bus *bus) {
  * Important for clock stretching detection.
  */
 static int scl_is_high(const struct mps2_i2c_bus *bus) {
-  if (bus->simulate_bus != 0U)
-    return 1;
-
   return ((bus->regs->CONTROL & MPS2_I2C_SCL_MASK) != 0U);
 }
 
@@ -59,9 +59,10 @@ static int wait_scl_high(struct mps2_i2c_bus *bus) {
   scl_release(bus);
 
   for (uint32_t timeout = 0U; timeout < bus->timeout_cycles; ++timeout) {
-    if (scl_is_high(bus) != 0) 
-      return MPS2_I2C_OK;
-  
+    if (scl_is_high(bus)) {
+        mps2_i2c_bit_delay(bus);
+	return MPS2_I2C_OK;
+    }
   }
 
   return MPS2_I2C_ERR_TIMEOUT;
@@ -89,9 +90,8 @@ static void bus_release(struct mps2_i2c_bus *bus) {
  * Reads line states from MPS2 I2C peripheral.
  */
 static int bus_is_idle(const struct mps2_i2c_bus *bus) {
-  return (scl_is_high(bus) != 0) && (sda_is_high(bus) != 0);
+  return (bus->regs->CONTROL & MPS2_I2C_LINES) == MPS2_I2C_LINES;
 }
-
 
 __attribute__((noinline))
 static int generate_start(struct mps2_i2c_bus *bus) {
@@ -100,11 +100,10 @@ static int generate_start(struct mps2_i2c_bus *bus) {
   sda_release(bus);
 
   result = wait_scl_high(bus);
-
   if (result != MPS2_I2C_OK)
     return result;
 
-  if ((bus->simulate_bus == 0U) && sda_is_high(bus) == 0)
+  if (!sda_is_high(bus))
     return MPS2_I2C_ERR_BUS_BUSY;
 
   /*
@@ -119,43 +118,23 @@ static int generate_start(struct mps2_i2c_bus *bus) {
 
 __attribute__((noinline))
 static int generate_restart(struct mps2_i2c_bus *bus) {
-  int result;
-
-  sda_release(bus);
-
-  result = wait_scl_high(bus);
-
-  if (result != MPS2_I2C_OK)
-    return result;
-
-  /*
-   * Repeated START:
-   * SDA high -> low while SCL is high
-   */
-  sda_drive_low(bus);
-  scl_drive_low(bus);
-
-  return MPS2_I2C_OK;
+  return generate_start(bus);
 }
 
 __attribute__((noinline))
 static int generate_stop(struct mps2_i2c_bus *bus) {
   int result;
 
+  scl_drive_low(bus);
   sda_drive_low(bus);
-
   result = wait_scl_high(bus);
+
+  sda_release(bus);
 
   if (result != MPS2_I2C_OK)
     return result;
  
-  /*
-   * STOP:
-   * SDA low -> high while SCL is high
-   */
-  sda_release(bus);
-
-  return MPS2_I2C_OK;
+  return bus_is_idle(bus) ? MPS2_I2C_OK : MPS2_I2C_ERR_BUS_BUSY;
 }
 
 static int write_bit(struct mps2_i2c_bus *bus, uint8_t bit_value) {
@@ -199,22 +178,8 @@ static int read_bit(struct mps2_i2c_bus *bus, uint8_t *bit_value) {
 
 static int receive_ack(struct mps2_i2c_bus *bus) {
   uint8_t nack;
-  int result;
 
-  if (bus->simulate_bus != 0U) {
-    sda_release(bus);
-
-    result = wait_scl_high(bus);
-
-    if (result != MPS2_I2C_OK)
-      return result;
-
-    scl_drive_low(bus);
-
-    return MPS2_I2C_OK;
-  }
-
-  result = read_bit(bus, &nack);
+  int result = read_bit(bus, &nack);
 
   if (result != MPS2_I2C_OK)
     return result;
@@ -224,10 +189,9 @@ static int receive_ack(struct mps2_i2c_bus *bus) {
 
 __attribute__((noinline))
 static int write_byte(struct mps2_i2c_bus *bus, uint8_t value) {
-  int result;
 
   for (uint8_t bit = 0U; bit < 8U; ++bit) {
-    result = write_bit(bus, (uint8_t)((value & 0x80U) != 0U));
+     int result = write_bit(bus, (uint8_t)((value & 0x80U) != 0U));
 
     if (result != MPS2_I2C_OK)
       return result;
@@ -246,102 +210,51 @@ static int read_byte(struct mps2_i2c_bus *bus, uint8_t *value, int send_ack) {
   uint8_t input_bit;
   uint8_t received = 0U;
 
-  int result;
-
   for (uint8_t bit = 0U; bit < 8U; ++bit) {
-    result = read_bit(bus, &input_bit);
+    int result = read_bit(bus, &input_bit);
 
     if (result != MPS2_I2C_OK)
       return result;
 
     received = (uint8_t) ((received << 1U) | input_bit);
-    
   }
 
   /*
    * ACK:  SDA low
    * NACK: SDA release/high
    */
-  result = write_bit(bus, (send_ack != 0) ? 0U : 1U);
+  int result = write_bit(bus, (send_ack != 0) ? 0U : 1U);
 
-  if (result != MPS2_I2C_OK)
-    return result;
+  if (result == MPS2_I2C_OK) {
+      *value = received;
+  }
 
-  *value = received;
-
-  return MPS2_I2C_OK;
+  return result;
 }
 
 static int send_address(struct mps2_i2c_bus *bus, uint8_t target_addr, int is_read) {
-  if (target_addr > 0x7FU)
-    return MPS2_I2C_ERR_ADDRESS;
-
-  uint8_t address_byte;
-
-  address_byte = (uint8_t)(target_addr << 1U) | ((is_read != 0) ? 1U : 0U);
+  uint8_t address_byte = (uint8_t)(target_addr << 1U) | ((is_read != 0) ? 1U : 0U);
 
   return write_byte(bus, address_byte);
 }
 
-static int write_message(struct mps2_i2c_bus *bus, const struct mps2_i2c_msg *message) {
-  int result;
-
-  for (size_t index = 0U; index < message->len; ++index) {
-    result = write_byte(bus, message->buf[index]);
-    
-    if (result != MPS2_I2C_OK)
-      return result;
-  }
-
-  return MPS2_I2C_OK;
-}
-
-static int read_message(struct mps2_i2c_bus *bus, struct mps2_i2c_msg *message) {
-  int result;
-  int send_ack;
-
-  for (size_t index = 0U; index < message->len; ++index) {
-    send_ack = ((index + 1U) < message->len);
-
-    result = read_byte(bus, &message->buf[index], send_ack);
-
-    if (result != MPS2_I2C_OK)
-      return result;
-  }
-
-  return MPS2_I2C_OK;
-}
-
 int mps2_i2c_init(struct mps2_i2c_bus *bus) {
-  if ((bus == NULL) ||
-      (bus->regs == NULL) ||
-      (bus->delay_cycles == 0U) ||
-      (bus->timeout_cycles == 0U)) {
-    return MPS2_I2C_ERR_ARGUMENT;
-  }
+  if (!bus_valid(bus))
+      return MPS2_I2C_ERR_ARGUMENT;
 
   bus_release(bus);
-
-  if (bus->simulate_bus != 0)
-    return MPS2_I2C_OK;
-
-  if (bus_is_idle(bus) == 0)
-    return mps2_i2c_recover_bus(bus);
-
-  return MPS2_I2C_OK;
+  return bus_is_idle(bus) ? MPS2_I2C_OK : mps2_i2c_recover_bus(bus);
 }
 
 __attribute__((noinline))
 int mps2_i2c_transfer(struct mps2_i2c_bus *bus, struct mps2_i2c_msg *messages, size_t num_messages, uint8_t target_addr) {
-  if ((bus == NULL) ||
-      (bus->regs == NULL) ||
-      (messages == NULL) ||
-      (num_messages == 0U)) {
-    return MPS2_I2C_ERR_ARGUMENT;
-  }
-
-  int is_read;
   int result;
+  int active = 0;
+
+  const uint8_t allowed = MPS2_I2C_MSG_READ | MPS2_I2C_MSG_STOP | MPS2_I2C_MSG_RESTART;
+
+  if (!bus_valid(bus) || messages == NULL || num_messages == 0U)
+    return MPS2_I2C_ERR_ARGUMENT;
 
   if (target_addr == 0x7FU)
     return MPS2_I2C_ERR_ADDRESS;
@@ -350,68 +263,66 @@ int mps2_i2c_transfer(struct mps2_i2c_bus *bus, struct mps2_i2c_msg *messages, s
   for (size_t index = 0U; index < num_messages; ++index) {
     struct mps2_i2c_msg *message = &messages[index];
     
-    if ((messages->buf == NULL) ||
-	(messages->len == 0U)) {
+    if ((message->buf == NULL) || (message->len == 0U) || (message->flags & ~allowed) != 0U) {
       return MPS2_I2C_ERR_ARGUMENT;
     }
 
-    if (index == 0U) {
-      result = generate_start(bus);
-    } else {
-      if ((message->flags & MPS2_I2C_MSG_RESTART) == 0U) {
-        (void)generate_stop(bus);
+    if (index > 0U && !(messages[index - 1U].flags & MPS2_I2C_MSG_STOP)
+		   && !(message->flags & MPS2_I2C_MSG_RESTART)) {
 	return MPS2_I2C_ERR_ARGUMENT;
-      }
-      result = generate_restart(bus);
     }
+  }
+
+  for (size_t index = 0U; index < num_messages; ++index) {
+    struct mps2_i2c_msg *message = &messages[index];
+    // Send address with R/W bit
+    int is_read = ((message->flags & MPS2_I2C_MSG_READ) != 0U);
+
+    result = active ? generate_restart(bus) : generate_start(bus);
 
     if (result != MPS2_I2C_OK) {
-      (void)generate_stop(bus);
+      if (active)
+        (void) generate_stop(bus);
+
       return result;
     }
 
-    // Send address with R/W bit
-    is_read = ((message->flags & MPS2_I2C_MSG_READ) != 0U);
-
+    active = 1;
     result = send_address(bus, target_addr, is_read);
 
     if (result != MPS2_I2C_OK) {
-      (void)generate_stop(bus);
-      return result; 
+      goto stop_on_error;
     }
 
-    // Transfer data
-    if (is_read != 0)
-      result = read_message(bus, message);
-    else
-      result = write_message(bus, message);
 
-    if (result != MPS2_I2C_OK) {
-      (void) generate_stop(bus);
-      return result;
+    for (size_t byte = 0U; byte < message->len; ++byte) {
+      result = is_read ? read_byte(bus, &message->buf[byte], byte + 1U < message->len)
+	               : write_byte(bus, message->buf[byte]);
+
+      if (result != MPS2_I2C_OK) {
+        goto stop_on_error;
+      }
     }
 
-    if ((message->flags & MPS2_I2C_MSG_STOP) != 0U) {
+    if ((message->flags & MPS2_I2C_MSG_STOP)) {
       result = generate_stop(bus);
 
       if (result != MPS2_I2C_OK)
         return result;
-    } else if ((index + 1U) == num_messages) {
-        (void) generate_stop(bus);
-	return MPS2_I2C_ERR_ARGUMENT;
     }
   }
 
   return MPS2_I2C_OK;
+
+stop_on_error:
+  (void) generate_stop(bus);
+  return result;
 }
 
 int mps2_i2c_probe(struct mps2_i2c_bus* bus, uint8_t target_addr) {
-  if ((bus == NULL) || (bus->regs == NULL)) {
+  if (!bus_valid(bus)) {
     return MPS2_I2C_ERR_ARGUMENT;
   }
-
-  if ((bus == NULL) || (bus->regs == NULL))
-    return MPS2_I2C_ERR_ARGUMENT;
 
   int result;
   int stop_result;
@@ -421,8 +332,10 @@ int mps2_i2c_probe(struct mps2_i2c_bus* bus, uint8_t target_addr) {
 
   result = generate_start(bus);
 
-  if (result == MPS2_I2C_OK)
-    result = send_address(bus, target_addr, 0);
+  if (result != MPS2_I2C_OK)
+    return result;
+
+  result = send_address(bus, target_addr, 0);
 
   stop_result = generate_stop(bus);
 
@@ -432,31 +345,31 @@ int mps2_i2c_probe(struct mps2_i2c_bus* bus, uint8_t target_addr) {
   return stop_result;
 }
 
-
 int mps2_i2c_recover_bus(struct mps2_i2c_bus *bus) {
-  if ((bus == NULL) || (bus->regs == NULL))
+  if (!bus_valid(bus))
     return MPS2_I2C_ERR_ARGUMENT;
 
   sda_release(bus);
 
-  int result;
+  int result = wait_scl_high(bus);
+
+  if (result != MPS2_I2C_OK)
+    return result;
+
+  if (sda_is_high(bus))
+    return MPS2_I2C_OK;
 
   for (uint8_t pulse = 0U; pulse < 9U; ++pulse) {
-    if (sda_is_high(bus) != 0)
-      break;
-
     scl_drive_low(bus);
 
     result = wait_scl_high(bus);
 
     if (result != MPS2_I2C_OK)
       return result;
+
+    if (sda_is_high(bus))
+      break;
   }
 
-  result = generate_stop(bus);
-
-  if (result != MPS2_I2C_OK)
-    return result;
-
-  return (bus_is_idle(bus) != 0) ? MPS2_I2C_OK : MPS2_I2C_ERR_BUS_BUSY;
+  return generate_stop(bus);
 }

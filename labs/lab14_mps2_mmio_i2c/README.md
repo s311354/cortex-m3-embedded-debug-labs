@@ -1,19 +1,19 @@
-# Lab 14: MPS2 MMIO I2C - Complete Driver Stack
+# Lab 14: MPS2 MMIO I2C - Layered Driver Stack
 
 ## Overview
 
-This lab demonstrates a **production-quality I2C driver stack** for communicating with an EEPROM device on the ARM Cortex-M3 MPS2 platform. Unlike Lab 13's generic bit-banging approach, this lab implements a complete three-layer driver architecture with hardware-specific MMIO register access, transaction-based I2C bus driver, and high-level EEPROM device abstraction.
+This lab demonstrates a **production-quality I2C driver stack** for communicating with an EEPROM device on the ARM Cortex-M3 MPS2 platform. Unlike Lab 13's generic bit-banging approach, this lab implements a complete three-layer driver architecture with hardware-specific MMIO register access, transaction-based I2C bus driver, and high-level EEPROM device abstraction. The default QEMU build connects an `at24c-eeprom` model to the Shield 1 I2C bus.
 
 ## Learning Objectives
 
-- Implement production I2C driver with software bit-banging using MPS2 I2C peripheral
+- Implement a layered I2C driver with software bit-banding using the MPS2 I2C peripheral
 - Master three-layer driver architecture (Application → Device → Bus → Hardware)
 - Understand MMIO register patterns (SET/CLEAR registers for atomic operations)
-- Design transaction-based bus APIs supporting complex multi-message operations
+- Design transaction-based bus APIs supporting write, read, and combined multi-message operations
 - Implement EEPROM device driver with page boundary management
 - Use state machines for debuggable embedded applications
 - Handle errors with recovery mechanisms (bus recovery, polling, timeouts)
-- Support both simulation (QEMU) and real hardware with conditional compilation
+- Exercise the MMIO line interface against QEMU's modeled I2C bus and EEPROM
 - Debug multi-layer driver stacks with GDB and volatile global state
 
 ## Architecture Overview
@@ -47,9 +47,9 @@ This lab demonstrates a **production-quality I2C driver stack** for communicatin
                ▼
 ┌─────────────────────────────────────────┐
 │  Hardware Layer (MPS2 I2C Peripheral)   │
-│  - CONTROL (read state / set bits)       │
-│  - CONTROLC (clear bits)                 │
-│  - CONTROLS (set with mask)              │
+│  - CONTROL (read state, offset 0x000)    │
+│  - CONTROLS (write-set alias, 0x000)     │
+│  - CONTROLC (write-clear, offset 0x004)  │
 └─────────────────────────────────────────┘
 ```
 
@@ -64,52 +64,46 @@ The MPS2 platform provides a minimalist I2C peripheral designed for software bit
 // MPS2 I2C peripheral registers (from ARM SMM_MPS2.h)
 // This is a dedicated I2C peripheral, but requires software protocol implementation
 struct MPS2_I2C_TypeDef {
-    uint32_t CONTROL;   // Read current state, Write to set bits
-    uint32_t CONTROLC;  // Write to clear bits (atomic)
-    uint32_t CONTROLS;  // Write with mask to set bits (atomic)
+    union {
+        uint32_t CONTROLS;  // Offset 0x000: write to set output bits
+        uint32_t CONTROL;   // Offset 0x000: read current line state
+    };
+    uint32_t CONTROLC;  // Offset 0x004: write to clear output bits
 };
 ```
 
 **Why This Pattern**:
-- Avoids read-modify-write hazards in multi-threaded/interrupt environments
-- Each register write is a single atomic store instruction
-- Common pattern in ARM peripheral design (similar to GPIO BSRR in STM32)
-- No need for critical sections or interrupt disabling
+- Avoids software read-modify-write when setting or clearing individual output bits
+- Each SET/CLEAR operation is performed with a single MMIO write
+- This set/clear alias pattern is common in peripheral register interfaces
+- It does not make a complete I2C transaction atomic or serialize multiple callers
 
-This design is typical for **FPGA-based prototyping platforms** where:
-- Simplified hardware reduces FPGA resource usage
+This minimalist interface is useful for **FPGA-based prototyping platform** where:
+- The hardware interface exposes direct SCL/SDA control instead of automatic I2C protocol generation
 - Software implementation provides protocol flexibility
-- Educational value demonstrates I2C timing at the bit level
-- Sufficient for low-speed configuration interfaces (audio codecs, EEPROMs)
+- Bit-level behavior remains visible for debugging and education
+- The interface is suitable for low-speed configuration traffic such as audio-codex or EEPROM access
 
 ### 2. Software Timing for I2C Protocol
 
-Precise timing control using volatile and inline assembly:
-
-```c
-static void mps2_i2c_bit_delay(const struct mps2_i2c_bus *bus) {
-    volatile uint32_t count;
-    for (count = 0U; count < bus->delay_cycles; ++count)
-        __asm volatile ("nop");
-}
-```
+Software timing delay using a volatile loop and `NOP` instructions:
 
 **Key Points**:
-- `volatile` prevents compiler from optimizing away the loop
-- `nop` instruction provides predictable single-cycle delay
-- Configurable `delay_cycles` allows tuning for different I2C speeds
-- Each function (sda_drive_low, scl_drive_low, etc.) includes delay
+- `volatile` keeps the loop-counter accesses observable, but does not make the complete delay cycle-accurate
+- `NOP` instructions are retained, while loop control, function calls, and MMIO accesses add additional execution time
+- Configurable `delay_cycles` changes the normal software delay; actual bus frequency must be measured or calibrated
+- SDA/SCL drive and release helpers call the software delay
 
 **I2C Timing Calculation**:
 ```
-I2C Standard Mode: 100 kHz → 10 μs period → 5 μs per half-cycle
-Cortex-M3 at 25 MHz: 25 cycles per μs → 125 cycles per half-cycle
-Account for function overhead: delay_cycles = 10-100 typical
+Configured target: ~100 kHz -> 10 μs nominal period -> 5 μs nominal half-cycle
+SystemCoreClock: 25 MHz -> 125 core cycles per nominal half-cycle
+board_i2c_delay_cycles() divides this by BOARD_DELAY_LOOP_CYCLES(5), producing delay_cycles = 25; this is an extimate, not a cycle-accurate bus-frequency guarantee
 ```
 
 ### 3. I2C Protocol State Machine
 
-Complete I2C master protocol implementation:
+Single-master I2C oprations sufficient for the lab's EEPROM write/read transactions:
 
 #### START Condition
 
@@ -122,14 +116,12 @@ Complete I2C master protocol implementation:
 #### Byte Transmission
 
 **Protocol Details**:
-- Data changes only when SCL is LOW
-- Data must be stable when SCL is HIGH
-- Bit 7 (MSB) transmitted first
-- 9th clock cycle for slave acknowledgment
+- During normal data-bit transfer, SDA changes while SCL is LOW
+- Data is stable while SCL is HIGH; START/STOP intentionally change SDA while SCL is HIGH
 
 #### Clock Stretching
 
-**I2C Clock Stretching**: Slave can hold SCL low to pause master until ready.
+**I2C Clock Stretching**: `wait_scl_high()` releases SCL and polls the line until it becomes high or the polling limit expires.
 
 
 ### 4. Transaction-Based Bus API
@@ -155,11 +147,10 @@ int mps2_i2c_transfer(struct mps2_i2c_bus *bus,
 ```
 
 **Advantages**:
-- Single function handles all I2C operations (write, read, combined)
-- Supports multi-message transactions (RESTART between messages)
-- Explicit control over START/STOP conditions
-- Similar to Linux kernel `i2c_transfer()` API
-- Reduces code duplication
+- Single function handles write, read, combined transactions for this 7-bit master
+- Supports multi-message transactions when each message after the first requests `RESTART`
+- The first message generates START; the final message must request STOP
+- Conceptually similar to Linux kernel message-based I2C transfer, but it is a lab-specific API and return convention
 
 **Bus Sequence**:
 ```
@@ -176,7 +167,7 @@ struct eeprom_device {
     struct mps2_i2c_bus *bus;      // Bus this device is on
     uint8_t target_addr;            // I2C 7-bit address (0x50)
     uint8_t address_width;          // 1 or 2 byte memory addressing
-    size_t page_size;               // Write page size (8 bytes)
+    size_t page_size;               // Write page size in bytes
     uint32_t ready_poll_limit;      // Polling timeout
 };
 ```
@@ -204,10 +195,7 @@ START → [0xA0] → [0x12] → [0x34] → [data] → STOP
 EEPROMs require writes to stay within page boundaries:
 
 **Why This Matters**:
-- EEPROM page size: 8, 16, 32, or 64 bytes (device-dependent)
-- Writing across page boundary causes address wrap-around
-- Data written to wrong location if boundary crossed
-- Driver must validate before write
+- EEPROM page size vary by device; 8, 16, 32, and 64 bytes are common examples
 
 **Example** (8-byte page):
 ```
@@ -231,10 +219,9 @@ enum lab14_stage {
 };
 
 **Why Volatile**:
-- Variables inspected by GDB must be `volatile`
-- Prevents compiler optimization that removes "unused" variables
-- Ensures memory location exists for debugger to read
-- Critical for debugging embedded state machines
+- `volatile` gives these globals observable volatile-access semantics and helps keep state changes inspectable in memory
+- It prevents the compoler from treating volatile accesses as ordinary removable accesses
+- It is useful for this debug-oriented build, but GDB visibility does not generally require every inspected variable to be `volatile`
 
 **GDB Usage**:
 ```gdb
@@ -253,12 +240,12 @@ $2 = 0xab
 
 # Check result
 (gdb) print g_eeprom_read_value
-$3 = 0xff
+$3 = 0xab
 ```
 
 ### 7. Error Handling and Recovery
 
-Production-quality error management:
+Structured error management:
 
 #### Structured Error Codes
 ```c
@@ -282,69 +269,24 @@ enum eeprom_status {
 ```
 
 **Benefits**:
-- Separate error spaces prevent conflicts
-- Descriptive names for debugging
-- Negative values allow positive return values for data
-- Easy to extend with new error types
+- Separate bus-layer and EEPROM-layer error ranges make failures easier to distinguish
+- Descriptive names aid debugging
+- Zero represents success and negative values represent errors
+- The enums can be extended with additional error types
 
 #### Bus Recovery
 
 When I2C bus is stuck (slave holding SDA low), recovery procedure:
 
 **Why 9 Clocks**:
-- I2C byte = 8 data bits + 1 ACK bit
-- Slave might be mid-byte when bus hung
-- 9 clocks ensures byte completes regardless of position
-- STOP resets slave protocol state machine
+- Up to 9 recovery clocks can advance a slave that is stuck partway through a byte
+- A STOP is then attempted to return the bus to an idle protocol state; recovery is not guaranteed for every fault
 
-#### Parameter Validation
+### 8. QEMU Device Model
 
-Defensive programming at every layer:
+The default QEMU command attaches an `at24c-eeprom` at address `0x50` to the first available I2C bus, which is Shield 1 (`0x4002A000`) on `mps2-an385`.
 
-**Best Practices**:
-- Validate all pointer parameters against NULL
-- Check size/length parameters against zero
-- Validate addresses against hardware limits
-- Return error before touching hardware
-
-### 8. Simulation vs Real Hardware
-
-Support both QEMU simulation and real hardware:
-
-**Benefits**:
-- Test driver logic without physical hardware
-- Same codebase for development and production
-- Easy to switch modes with compile flag
-- Validates protocol implementation
-
-
-### 9. Compiler Attributes for Embedded
-
-Control code generation for debugging and timing:
-
-
-**`noinline` Attribute**:
-- Prevents function from being inlined into caller
-- Ensures function exists in symbol table for GDB breakpoints
-- Preserves timing characteristics (important for protocol timing)
-- Allows profiling specific operations
-
-**`volatile` Assembly**:
-- Prevents compiler from removing "empty" function
-- Creates observable side effect
-- Each `nop` is exactly 1 CPU cycle on Cortex-M3
-
-**Without `noinline`**:
-```gdb
-(gdb) break write_byte
-Function "write_byte" not defined.  # Inlined, no function exists
-```
-
-**With `noinline`**:
-```gdb
-(gdb) break write_byte
-Breakpoint 1 at 0x408: file mps2_i2c.c, line 234.  # Success
-```
+QEMU's AT24C model consumes two internal-address bytes for every write transaction, including when `rom-size=256`. The board descriptor therefore uses `address_width = 2`, so the byte at address `0x0010` is addressed as `0x00, 0x10`.
 
 ## Code Walkthrough
 
@@ -360,7 +302,11 @@ START
   ↓
 ACK     ← EEPROM acknowledges
   ↓
-[0x10]  ← Memory address
+[0x00]  ← Memory address high byte
+  ↓
+ACK     ← EEPROM acknowledges
+  ↓
+[0x10]  ← Memory address low byte
   ↓
 ACK     ← EEPROM acknowledges
   ↓
@@ -383,7 +329,11 @@ START
   ↓
 ACK
   ↓
-[0x10]    ← Memory address to read from
+[0x00]    ← Memory address high byte
+  ↓
+ACK
+  ↓
+[0x10]    ← Memory address low byte
   ↓
 ACK
   ↓
@@ -398,89 +348,6 @@ ACK
 NACK      ← Master signals end of read
   ↓
 STOP
-```
-
-### Advanced Debugging Techniques
-
-#### Inspect I2C Peripheral Register State
-```gdb
-# View raw register values
-(gdb) print/x *bus->regs
-$1 = {
-  CONTROL = 0x3,   # Bits: SDA=1, SCL=1 (idle)
-  CONTROLC = 0x0,
-  CONTROLS = 0x0
-}
-
-# Watch for register changes
-(gdb) watch bus->regs->CONTROL
-Hardware watchpoint 2: bus->regs->CONTROL
-
-(gdb) continue
-Hardware watchpoint 2: bus->regs->CONTROL
-Old value = 0x3
-New value = 0x2  # SDA driven low (START)
-```
-
-#### Trace I2C Protocol
-```gdb
-# Set breakpoints on all I2C primitives
-(gdb) break generate_start
-(gdb) break write_byte
-(gdb) break read_byte
-(gdb) break generate_stop
-
-# Display current operation
-(gdb) commands
-> silent
-> printf "I2C Operation: %s\n", __func__
-> continue
-> end
-
-# See protocol flow
-(gdb) run
-I2C Operation: generate_start
-I2C Operation: write_byte
-I2C Operation: write_byte
-I2C Operation: write_byte
-I2C Operation: generate_stop
-```
-
-#### Examine Call Stack During Transaction
-```gdb
-(gdb) break write_bit
-(gdb) continue
-
-(gdb) backtrace
-#0  write_bit () at mps2_i2c.c:156
-#1  write_byte () at mps2_i2c.c:234
-#2  send_address () at mps2_i2c.c:284
-#3  mps2_i2c_transfer () at mps2_i2c.c:322
-#4  eeprom_write () at eeprom.c:89
-#5  eeprom_write_byte () at eeprom.c:105
-#6  main () at main.c:42
-```
-
-### Using objdump for Analysis
-
-```bash
-# Disassemble entire binary
-arm-none-eabi-objdump -D lab14_mps2_mmio_i2c.elf > disassembly.txt
-
-# View specific function
-arm-none-eabi-objdump -D lab14_mps2_mmio_i2c.elf | grep -A 30 "write_byte"
-
-# Check if noinline worked
-arm-none-eabi-nm lab14_mps2_mmio_i2c.elf | grep write_byte
-000003f8 t write_byte  # 't' = local text symbol, function exists
-
-# View symbol table
-arm-none-eabi-nm -S lab14_mps2_mmio_i2c.elf | sort
-
-# Inspect section sizes
-arm-none-eabi-size lab14_mps2_mmio_i2c.elf
-   text    data     bss     dec     hex filename
-   3428      12     104    3544     dd8 lab14_mps2_mmio_i2c.elf
 ```
 
 ## Key Observations
@@ -528,47 +395,6 @@ This allows slow devices to pause the master.
 - Indicates stuck device or incomplete transaction
 - Requires bus recovery procedure
 
-## Software I2C Trade-offs
-
-**Note**: The MPS2 I2C peripheral used in this lab is a **minimalist hardware peripheral** that still requires software bit-banging. This section compares software-based I2C (like ours) versus full-featured I2C hardware controllers (with automatic protocol handling).
-
-### Advantages
-
-✅ **Flexibility**: Minimal hardware allows protocol customization  
-✅ **Multiple buses**: MPS2 provides multiple I2C peripheral instances  
-✅ **Bus recovery**: Manual control for unsticking devices  
-✅ **Custom timing**: Adapt to non-standard devices  
-✅ **Debugging**: Step through protocol at bit level  
-✅ **FPGA efficiency**: Simple peripheral uses fewer FPGA resources  
-
-### Disadvantages
-
-❌ **CPU intensive**: Wastes cycles on bit manipulation  
-❌ **Interrupt sensitivity**: IRQs can break timing  
-❌ **Lower speed**: Limited by software delay precision  
-❌ **No DMA support**: Every byte requires CPU intervention  
-❌ **Power consumption**: CPU can't sleep during transfers  
-❌ **Code size**: Larger than hardware driver  
-
-### When to Use Each
-
-**Use Software/Minimalist I2C (like MPS2) When**:
-- Full I2C hardware controller unavailable
-- Low-speed configuration interfaces (audio codecs, EEPROMs)
-- Need multiple I2C buses beyond hardware limit
-- Non-standard timing requirements
-- Bus recovery needed frequently
-- Educational/debugging purposes
-- FPGA resource constraints
-
-**Use Full Hardware I2C Controller (e.g., STM32, NXP) When**:
-- High-speed transfers required (>100 kHz reliable)
-- Power efficiency critical
-- CPU bandwidth limited
-- DMA support beneficial
-- Multiple peripherals competing for CPU
-- Production system with proven hardware
-
 ## Key Takeaways
 
 ### 1. Driver Architecture
@@ -578,18 +404,17 @@ This allows slow devices to pause the master.
 - **Hardware layer** provides platform-specific register access
 
 ### 2. MMIO Patterns
-- **SET/CLEAR registers** enable atomic bit manipulation without RMW
-- **Common in ARM** peripherals (I2C, GPIO, timers, interrupts)
+- **SET/CLEAR aliases** update individual output bits without a software RMW sequence
 - **MPS2 I2C peripheral** uses this pattern for SDA/SCL control
 - **Prevents race conditions** in multi-threaded or interrupt-driven code
 
 ### 3. Protocol Implementation
-- **State machines** for protocol sequencing (START, data, STOP)
-- **Bit-level control** requires precise timing with volatile loops
-- **Error detection** at each step (ACK/NACK, timeout, bus busy)
+- Procedural sequencing implements START, data, ACK/NACK, RESTART, and STOP operations
+- **Bit-level control** uses software delays whose actual timing must be calibrated or measured
+- **Error detection** covers ACK/NACK, SCL-wait timeout, and bus-busy conditions in the applicable mode
 
 ### 4. Embedded Debugging
-- **Volatile globals** make state visible to debugger
+- **Volatile globals** keep state accesses observable and convenient to inspect in this debug build
 - **noinline functions** create breakpoint targets
 - **State enums** provide meaningful context in GDB
 - **Checkpoint functions** mark important transitions
@@ -598,18 +423,7 @@ This allows slow devices to pause the master.
 - **Parameter validation** at API boundaries
 - **Structured error codes** for actionable diagnostics  
 - **Bus recovery** for fault tolerance
-- **Simulation support** for testing without hardware
-
-### 6. Compiler Control
-- **`volatile`** prevents optimization of timing-critical code
-- **`__attribute__((noinline))`** controls function generation
-- **Inline assembly** provides cycle-accurate delays
-
-### 7. Real-World Considerations
-- **Page boundaries** matter for EEPROM writes
-- **Write polling** required for non-volatile memory
-- **Clock stretching** allows slow devices to control timing
-- **Address width** varies by device capacity
+- **Simulation support** for control-flow testing without a physical target
 
 ## References
 
@@ -619,4 +433,3 @@ This allows slow devices to pause the master.
 - [24C02 EEPROM Datasheet (Microchip)](https://ww1.microchip.com/downloads/en/DeviceDoc/doc0180.pdf)
 - [Linux Kernel I2C Subsystem Documentation](https://www.kernel.org/doc/html/latest/i2c/)
 - [Embedded Software Design Patterns](https://www.embedded.com/design-patterns-for-embedded-systems-in-c/)
-

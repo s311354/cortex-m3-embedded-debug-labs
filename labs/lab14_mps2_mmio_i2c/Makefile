@@ -1,6 +1,8 @@
 TARGET := lab14_mps2_mmio_i2c
 PLATFORM := selftest
 
+QEMU_EXTRA_FLAGS ?= \
+		    -device at24c-eeprom,id=lab14_eeprom,address=0x50,rom-size=256
 PROJECT_ROOT ?= $(realpath ../..)
 COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)
 
