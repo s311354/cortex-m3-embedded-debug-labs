@@ -28,6 +28,7 @@ LABS := \
        lab18_pcie_enumeration \
        lab19_pcie_bar_resource_zephyr \
        lab20_uart_async_rx_manager_zephyr \
+       lab21_i2c_register_update_zephyr \
        labh1_ahb_pcie_host_bridge \
        labh2_pcie_transaction_model \
        labh3_fpga_pcie_root_port

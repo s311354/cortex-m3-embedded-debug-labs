@@ -1,0 +1,19 @@
+description: Lab21 generic sensor with 8-bit I2C configuration registers
+compatible: "lab21,sensor"
+include: i2c-device.yaml
+
+properties:
+  lab21,test-reg:
+    type: int
+    required: true
+    description: Safe readable/writable 8-bit configuration register
+
+  lab21,test-mask:
+    type: int
+    required: true
+    description: Configuration bits changed by the interview exercise
+
+  lab21,test-value:
+    type: int
+    required: true
+    description: Value supplying the new masked bits

@@ -1,0 +1,25 @@
+/*
+* MPS2 board DTS already defines:
+*    i2c_shield1: i2c@4002a00 {
+*    ...
+*    };
+*
+* Lab21 only enables/uses it
+*/
+&i2c_shield1 {
+    status = "okay";
+    clock-frequency = <100000>;
+
+    sensor0: sensor@2a {
+        compatible = "lab21,sensor";
+        reg = <0x2a>;
+        status = "okay";
+
+        /*
+        * EXAMPLE VALUES ONLY
+        */
+        lab21,test-reg = <0x10>;
+        lab21,test-mask = <0x0f>;
+        lab21,test-value = <0x05>;
+    };
+};
