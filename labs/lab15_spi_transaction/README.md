@@ -1,77 +1,71 @@
 # Lab 15: SPI Transaction - Software Bit-Banging Protocol Implementation
 
 ## Overview
+This lab demonstrates a **software-driven, 8-bit SPI (Serial Peripheral Interface) controller algorithm** using callbacks on the ARM Cortex-M3 platform. It implements clock polarity/phase, bit ordering, and chip-select sequencing in software. The supplied backend changes RAM fields, not physical GPIO or MPS2 SPI peripheral registers; this is not a complete implementation of every SPI variant or target protocol.
 
-This lab demonstrates **software-based SPI (Serial Peripheral Interface) protocol implementation** using bit-banging techniques on the ARM Cortex-M3 platform. Unlike hardware SPI peripherals, this lab implements the complete SPI protocol in software, providing full control over timing, clock polarity/phase, and bit ordering.
-
-The lab features a clean driver architecture with hardware abstraction through function pointers, a simulated SPI device that responds to commands, and comprehensive debugging support for understanding the SPI protocol at the bit level.
+The lab uses hardware-abstraction function pointers, a **scripted MISO responder**, and GDB-visible state for following the software transfer. The responder does not decode MOSI commands, advance on SCLK edges, or validate electrical timing. A passing response check therefore establishes the scripted receive path, not command recognition or communication with an independent SPI flash.
 
 ## Learning Objectives
 
-- Implement SPI protocol entirely in software (bit-banging)
-- Master SPI modes (CPOL/CPHA) and their timing differences
-- Understand hardware abstraction using function pointers and callbacks
+- Follow an 8-bit SPI controller algorithm implemented in software
+- Understand the four SPI modes (CPOL/CPHA) and their controller-side callback order
 - Design testable embedded drivers with simulated device support
 - Control bit ordering (MSB-first vs LSB-first)
-- Manage SPI chip select and clock signals manually
-- Debug protocol implementations with state machines and volatile variables
-- Measure protocol metrics (clock edges, timing delays)
-- Test communication protocols without physical hardware
+- Manage logical SPI chip-select and clock levels through callbacks
+- Debug protocol implementations with explicit stage tracking and volatile variables
+- Count logical clock transitions and delay-callback invocations; distinguish these from elapsed time
+- Test the software transfer path without physical hardware, while recognizing the responder's limits
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────┐
 │  Application Layer (main.c)              │
-│  - Test sequence with state tracking     │
-│  - Send READ_ID command (0x9F)          │
-│  - Verify device response               │
+│  - Send 0x9F FF FF FF                    │
+│  - Compare RX with FF EF 40 18          │
 └──────────────┬──────────────────────────┘
                │ spi_bitbang_transfer()
                ▼
 ┌─────────────────────────────────────────┐
 │  SPI Driver Layer (spi_bitbang.c)       │
-│  - Protocol implementation              │
-│  - Mode control (CPOL/CPHA)             │
-│  - Bit ordering (MSB/LSB first)         │
-│  - Chip select management               │
+│  - 8-bit transfer and mode sequencing   │
+│  - MSB/LSB bit placement                │
+│  - Chip-select management               │
 └──────────────┬──────────────────────────┘
-               │ ops->set_sclk()
-               │ ops->set_mosi()
-               │ ops->get_miso()
-               │ ops->set_cs()
+               │ ops callbacks
                ▼
 ┌─────────────────────────────────────────┐
 │  Hardware Abstraction (ops callbacks)    │
-│  - Function pointers for portability    │
-│  - Context-based operations             │
+│  - set_sclk /set_mosi/get_miso/set_cs    │
+│  - delay_half_cycle                     │
 └──────────────┬──────────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────────┐
-│  Simulated Device                        │
+│  Simulated Device (scripted responder)  │
 │  (simulated_spi_device.c)               │
-│  - Responds to READ_ID command          │
-│  - Tracks clock edges and delays        │
-│  - Returns device ID: 0xEF4018          │
+│  - Fixed FF EF 40 18 on selected reads  │
+│  - Counts transitions and delay calls   │
+│  - No MOSI decoder or timing validation │
 └─────────────────────────────────────────┘
 ```
+
 ## SPI Protocol Fundamentals
 
 ### SPI Signal Lines
 
-SPI uses four signal lines for communication:
+The common four-wire form of SPI uses four signal lines for a single target. Three-wire, dual/quad-I/O, daisy-chain, and target-specific variants also exist.
 
 ```
-Master                           Slave
+Controller                       Target
 ┌──────────┐                   ┌──────────┐
 │          │ SCLK (Clock)  ->  │          │
 │          │                   │          │
-│          │ MOSI (Master Out) │          │
-│          │      Slave In ->  │          │
+│          │ MOSI (Controller) │          │
+│          │          Out  ->  │          │
 │          │                   │          │
-│          │ MISO (Master In)  │          │
-│          │  <- Slave Out     │          │
+│          │ MISO (Controller) │          │
+│          │  <-          In   │          │
 │          │                   │          │
 │          │ CS (Chip Select)  │          │
 │          │              ->   │          │
@@ -79,72 +73,53 @@ Master                           Slave
 ```
 
 **Signal Definitions**:
-- **SCLK**: Serial Clock - Master generates clock, slave synchronizes to it
-- **MOSI**: Master Out, Slave In - Data from master to slave
-- **MISO**: Master In, Slave Out - Data from slave to master
-- **CS**: Chip Select - Activates the slave device (active low typical)
+- **SCLK**: Serial clock generated by the controller
+- **MOSI**: Master Out, Slave In - the conventional name for controller-to-target data
+- **MISO**: Master In, Slave Out - the conventional name for target-to-controller data
+- **CS**: Chip select; commonly, but not universally, active low
 
 ### SPI Modes (CPOL and CPHA)
 
-SPI has four modes based on two parameters:
+The conventional SPI mode numbering describes four CPOL/CPHA combinations:
 - **CPOL (Clock Polarity)**: Clock idle state (0 = low, 1 = high)
-- **CPHA (Clock Phase)**: Data sampling edge (0 = first edge, 1 = second edge)
+- **CPHA (Clock Phase)**: Capture on the leading edge when 0, or on the trailing edge when 1
 
-```
-Mode 0 (CPOL=0, CPHA=0):
-SCLK:  ‾‾‾\___/‾‾‾\___/‾‾‾\___/‾‾‾\___
-MOSI:  ___X=======X=======X=======X___
-         Sample↑   ↑       ↑       ↑
-Data changes on falling, samples on rising
+Here, the **leading edge** is the first transition away from idle and the **trailing edge** is the return to idle.
 
-Mode 1 (CPOL=0, CPHA=1):
-SCLK:  ‾‾‾\___/‾‾‾\___/‾‾‾\___/‾‾‾\___
-MOSI:  =======X=======X=======X=======
-       ↑Sample   ↑       ↑       ↑
-Data changes on rising, samples on falling
+| Mode | CPOL | CPHA | Idle | Leading edge | Trailing edge | Capture edge | Change/launch edge |
+|------|------|------|------|--------------|---------------|--------------|--------------------|
+| 0 | 0 | 0 | Low | Rising | Falling | Rising | Falling |
+| 1 | 0 | 1 | Low | Rising | Falling | Falling | Rising |
+| 2 | 1 | 0 | High | Falling | Rising | Falling | Rising |
+| 3 | 1 | 1 | High | Falling | Rising | Rising | Falling |
 
-Mode 2 (CPOL=1, CPHA=0):
-SCLK:  ___/‾‾‾\___/‾‾‾\___/‾‾‾\___/‾‾‾
-MOSI:  ___X=======X=======X=======X___
-         Sample↑   ↑       ↑       ↑
-Data changes on rising, samples on falling
+For CPHA=0, the first output bit is presented before the first leading edge; later bits change after trailing edges. For CPHA=1, each bit is launched at the leading edge and captured at the trailing edge.
 
-Mode 3 (CPOL=1, CPHA=1):
-SCLK:  ___/‾‾‾\___/‾‾‾\___/‾‾‾\___/‾‾‾
-MOSI:  =======X=======X=======X=======
-       ↑Sample   ↑       ↑       ↑
-Data changes on falling, samples on rising
-```
-
-**Key Principle**: Data must be stable when it's sampled on the sampling edge.
+**Key Principle**: Data must meet the target's setup and hold requirements around its capture edge.
 
 ### SPI Transaction Timing
 
-A complete SPI byte transfer:
+A conventional active-low, Mode 0, MSB-first byte transfer has eight clock cycles.
 
 ```
-CS:    ‾‾‾\___________________________/‾‾‾
-           ↓ (Select slave)          ↑ (Deselect)
+CS:    ‾‾‾‾\_________________________________/‾‾‾‾
+           ↓ (Select target)         ↑ (Deselect)
 
-SCLK:  ‾‾‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾‾‾
-           0   1   2   3   4   5   6   7
-
-MOSI:  ═══X===X===X===X===X===X===X===X═══
-        Bit7 Bit6 Bit5 Bit4 Bit3 Bit2 Bit1 Bit0
-
-MISO:  ═══X===X===X===X===X===X===X===X═══
-        Bit7 Bit6 Bit5 Bit4 Bit3 Bit2 Bit1 Bit0
+SCLK:  _____/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_____
+            ↑   ↑   ↑   ↑   ↑   ↑   ↑   ↑  capture Bit7 ... Bit0
 ```
 
 **Transfer Sequence**:
-1. Assert CS low (select slave)
+1. Establish the idle clock level, then assert CS low for an active-low target
 2. For each bit (typically MSB first):
-   - Master sets MOSI to bit value
-   - Master toggles SCLK
-   - Both devices sample MISO/MOSI on appropriate edge
-3. Deassert CS high (deselect slave)
+   - The controller presents each MOSI bit according to CPHA
+   - The controller toggles SCLK
+   - A physical controller/target samples on its configured edge; the bundled responder instead advances when `get_miso()` is called
+3. Return SCLK to idle and deassert CS high
 
-## Cortex-M3 Concepts Covered
+This callback order does not by itself satisfy a physical target's minimum CS setup/hold times, data setup/hold times, or clock-period limits. A real backend must implement those requirements from the target data sheet.
+
+## Software Design Concepts Covered
 
 ### 1. Hardware Abstraction with Function Pointers
 
@@ -162,7 +137,7 @@ struct spi_bitbang_ops {
 struct spi_bitbang_bus {
     const struct spi_bitbang_ops *ops;
     void *context;
-    
+
     enum spi_mode mode;
     enum spi_bit_order bit_order;
     uint8_t cs_active_low;
@@ -170,10 +145,10 @@ struct spi_bitbang_bus {
 ```
 
 **Benefits**:
-- **Portability**: Same driver works with different hardware implementations
+- **Portability**: A backend can be replaced when it implements the same callback contract
 - **Testability**: Easy to inject mock/simulated hardware
 - **Flexibility**: Runtime selection of hardware backend
-- **Separation of concerns**: Protocol logic independent of hardware access
+- **Separation of concerns**: Protocol sequencing is separated from pin/state access
 
 **Usage Pattern**:
 ```c
@@ -196,92 +171,94 @@ uint8_t bit = bus->ops->get_miso(bus->context);  // Read data
 The driver dynamically handles all four SPI modes:
 
 **Key Differences**:
-- **CPHA=0**: Data must be stable BEFORE clock edge
-- **CPHA=1**: Data changes WITH clock edge, sampled on return
+- **CPHA=0**: Present data before the leading capture edge
+- **CPHA=1**: Launch data at the leading edge and capture it at the trailing edge
 - **Idle level** determined by CPOL
 - **Active level** is opposite of idle (`cpol ^ 1`)
 
 ### 3. Bit Ordering Control
 
-Supports both MSB-first and LSB-first transmission:
+The controller code supports both MSB-first and LSB-first TX extraction and RX assembly:
 
-**MSB-First Example** (value = 0xA5 = 10100101):
+**MSB-First Example** (value = 0x96 = 10010110):
 ```
 Bit Index:  0    1    2    3    4    5    6    7
-Bit Sent:   1    0    1    0    0    1    0    1
+Bit Sent:   1    0    0    1    0    1    1    0
 Shift:     >>7  >>6  >>5  >>4  >>3  >>2  >>1  >>0
 ```
 
-**LSB-First Example** (value = 0xA5 = 10100101):
+**LSB-First Example** (value = 0x96 = 10010110):
 ```
 Bit Index:  0    1    2    3    4    5    6    7
-Bit Sent:   1    0    1    0    0    1    0    1
+Bit Sent:   0    1    1    0    1    0    0    1
 Shift:     >>0  >>1  >>2  >>3  >>4  >>5  >>6  >>7
+```
 
 
 **Why Both Orders Matter**:
-- Most SPI devices use MSB-first (default)
-- Some legacy or specialized devices require LSB-first
-- Software implementation makes both equally easy
-- Hardware SPI peripherals often only support one order
+- Bit order is defined by the target protocol; the W25Q128JV Read JEDEC ID command used as inspiration here is MSB-first
+- The driver's extraction and placement helpers implement either order
+- Hardware-peripheral support for configurable bit order is implementation-specific
+- The bundled responder always emits its scripted bytes MSB-first, so it does not validate the LSB-first setting
 
 ### 4. Chip Select Management
 
 Proper CS timing is critical for SPI communication:
 
 **CS Polarity**:
-- Most SPI devices use **active-low** CS (low = selected)
+- **Active-low** CS is common (low = selected)
 - Some devices use **active-high** CS (high = selected)
-- Driver supports both through `cs_active_low` flag
+- The driver can generate either polarity through `cs_active_low`
+- The bundled responder treats only a low CS level as selected, so it supports only the active-low configuration
 
-**CS Timing Rules**:
+**Typical transaction sequence** (always check the target data sheet):
 1. Assert CS before first clock edge
 2. Keep CS asserted during entire transaction
 3. Return clock to idle level before deasserting CS
 4. Deassert CS after last clock edge completes
 
-**Multi-Slave Selection**:
-```c
-// Hardware typically has separate CS line per slave
-CS0: ‾‾\___________/‾‾‾‾‾‾‾‾‾‾‾‾  (Slave 0 selected)
-CS1: ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾  (Slave 1 idle)
-CS2: ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾  (Slave 2 idle)
-```
+**Implementation note**: `spi_bitbang_init()` currently calls `spi_bitbang_select()`, so it leaves CS asserted. `spi_bitbang_transfer()` writes the active CS level again before the byte loop and deasserts it on return. That behavior is reflected by this lab's scripted backend, but a physical integration must initialize CS and meet transaction timing according to its target data sheet.
 
+**Multi-Target Selection**:
+```c
+// Hardware typically has a separate CS line per target
+CS0: ‾‾\___________/‾‾‾‾‾‾‾‾‾‾‾‾  (Target 0 selected)
+CS1: ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾  (Target 1 idle)
+CS2: ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾  (Target 2 idle)
+```
 ### 5. Byte Transfer Implementation
 
-Complete byte transfer with simultaneous TX and RX:
-
+`spi_bitbang_transfer_byte()` clocks one 8-bit word and assembles one RX byte from eight `get_miso()` calls.
 
 **Full-Duplex Communication**:
-- SPI is inherently full-duplex
-- Master sends and receives simultaneously
-- Every TX byte produces an RX byte (even if garbage)
-- Dummy bytes (0xFF) used when only reading
+- Conventional four-wire SPI can carry MOSI and MISO data during the same clocks
+- The controller sends and receives one bit per clock cycle
+- This function returns an RX byte for every TX byte even when the target protocol does not define meaningful returned data
+- This driver uses 0xFF as its filler when no TX buffer is supplied; 0xFF is not a universal SPI read requirement
 
 ### 6. Transaction-Level Transfer
 
 Multi-byte transfer with optional TX/RX buffers:
 
-
 **Flexible Buffer Handling**:
 - `tx_buffer == NULL`: Send 0xFF (read-only operation)
 - `rx_buffer == NULL`: Ignore received data (write-only)
 - Both provided: Full-duplex transfer
+- Both `tx_buffer` and `rx_buffer` null: Return `SPI_ERROR_INVALID_ARGUMENT`
 - CS asserted for entire multi-byte transfer
 
 ### 7. Simulated Device for Testing
 
-The lab includes a complete simulated SPI flash device:
+The lab includes a **scripted MISO responder**, not a complete simulated SPI flash device. Each low level passed to `set_cs()` resets its script indices. While selected, it returns eight one bits, then `EF 40 18` MSB-first, then ones. MOSI is stored but never decoded, and SCLK updates do not advance the response. `command_received` means eight selected MISO reads occurred, not that `0x9F` was recognized.
 
 **Why Simulation**:
-- Test driver without physical hardware
-- Validate protocol timing and sequencing
+- Exercise the driver without physical hardware
+- Observe callback sequencing; use an independent edge-aware checker for actual protocol validation
 - Debug driver logic independently
-- Measure performance metrics
+- Record logical transition/callback counts, not physical timing or CPU utilization
 - Educational tool for understanding protocol
 
-### 8. State Machine Debugging
+### 8. Stage Tracking for Debugging
 
 Application uses explicit state tracking for debugging:
 
@@ -297,44 +274,29 @@ enum lab15_stage {
 ```
 
 **Why This Pattern**:
-- `volatile` prevents compiler optimization
+- GCC preserves accesses to these volatile objects according to its documented volatile semantics; this does not make the accesses atomic or timing-accurate
 - Checkpoint provides consistent breakpoint location
 - State enum gives meaningful context in debugger
 - Separate result variables track each operation
-- Metrics capture performance characteristics
+- Metrics capture operation counts, not elapsed time, power, or CPU load
 
 ## Code Walkthrough
 
 ### READ_ID Command Transaction
 
 **Command**: 0x9F (JEDEC Read ID)  
-**Purpose**: Read flash device manufacturer and device ID
+**Purpose**: On a compatible physical flash, retrieve manufacturer, memory-type, and capacity identifiers. Here, only the command-shaped exchange and scripted response are demonstrated.
 
 **Transaction Sequence**:
-```
-Master sends:  [0x9F] [0xFF] [0xFF] [0xFF]
-Slave returns: [0xFF] [0xEF] [0x40] [0x18]
-                 ↑      ↑      ↑      ↑
-              dummy   Mfr ID  Type  Capacity
-```
 
-**SPI Bus Timing** (Mode 0, MSB-first):
-```
-CS:   ‾‾\___________________________________/‾‾
+| Byte clocks | Controller MOSI | Scripted MISO | Interpretation of scripted MISO |
+|-------------|-----------------|---------------|---------------------------------|
+| 0 | `0x9F` | `0xFF` | Scripted filler while the command byte is clocked |
+| 1 | `0xFF` | `0xEF` | Winbond manufacturer ID |
+| 2 | `0xFF` | `0x40` | Memory-type code |
+| 3 | `0xFF` | `0x18` | Capacity code |
 
-      |<---- Byte 0 ---->|<---- Byte 1 ---->|
-SCLK: ‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾\_/‾
-       0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
-
-MOSI: X1=0=0=1=1=1=1=1=XXXXXXXXXXXXXXXXXXXXXXX
-       ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-       0x9F command
-
-MISO: XXXXXXXXXXXXXXXXXXXXXXX1=1=1=0=1=1=1=1XXX
-                              ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-                              0xEF response
-```
-
+The three ID bytes resemble the `EF 40 18` JEDEC ID of an MSB-first Winbond W25Q128JV variant. On that physical flash, MISO is high-impedance while `0x9F` is shifted in, so the first received byte is not guaranteed to be `0xFF`; that value is a property of this script.
 
 ### GDB Debugging Session
 
@@ -342,17 +304,17 @@ MISO: XXXXXXXXXXXXXXXXXXXXXXX1=1=1=0=1=1=1=1XXX
 
 ```gdb
 (gdb) break lab15_debug_checkpoint
-Breakpoint 1 at 0x320: file main.c, line 24.
+# GDB reports the address and source line for your build
 
 (gdb) continue
 
-# At INIT stage
+# At INIT: spi_bitbang_init() has not executed yet
 (gdb) print g_lab15_stage
 $1 = LAB15_STAGE_INIT
 
 (gdb) continue
 
-# At TRANSFER stage
+# At TRANSFER: spi_bitbang_init() completed, but the transfer has not executed
 (gdb) print g_lab15_stage
 $2 = LAB15_STAGE_TRANSFER
 
@@ -361,7 +323,7 @@ $3 = {0x9f, 0xff, 0xff, 0xff}
 
 (gdb) continue
 
-# After transfer completes
+# After transfer completes and verification passes
 (gdb) print g_lab15_stage
 $4 = LAB15_STAGE_DONE
 
@@ -376,273 +338,119 @@ $7 = 64
 ```
 
 **Trace protocol execution**:
+
 ```gdb
+# Restart QEMU and reconnect GDB for this separate trace.
+
 # Break on bit-level operations
-(gdb) break spi_bitbang_transfer_byte
-(gdb) break simulated_get_miso
+(gdb) tbreak spi_bitbang_transfer_byte
 
 # Step through byte transfer
 (gdb) continue
 (gdb) step
 (gdb) print/x tx_byte
-(gdb) print/x rx_byte
+# Expected first TX byte: 0x9f. The function initializes rx_byte to 0.
 
-# Watch MISO changes
+
+# A watchpoint observes the RAM field, not an electrical MISO pin
 (gdb) watch g_simulated_device.miso
+(gdb) continue
 ```
 
 **Inspect simulated device state**:
+
+At the final `LAB15_STAGE_DONE` checkpoint from the first session:
+
 ```gdb
-(gdb) print g_simulated_device
+(gdb) set print pretty on
+(gdb) print/x g_simulated_device
 $8 = {
-  sclk = 0,
-  mosi = 1,
-  miso = 1,
-  cs = 1,
-  clock_edge_count = 64,
-  delay_count = 64,
-  selected = 0,
-  command_received = 1,
-  response_byte_index = 3,
-  response_bit_index = 0,
+  sclk = 0x0,
+  mosi = 0x1,
+  miso = 0x1,
+  cs = 0x1,
+  clock_edge_count = 0x40,
+  delay_count = 0x40,
+  selected = 0x0,
+  command_received = 0x1,
+  response_byte_index = 0x3,
+  response_bit_index = 0x0,
   response = {0xef, 0x40, 0x18}
 }
 ```
 
 ## Key Observations
 
-### 1. SPI vs I2C Comparison
+### SPI vs I2C Comparison
 
 | Feature | SPI | I2C |
 |---------|-----|-----|
-| **Signals** | 4 (SCLK, MOSI, MISO, CS) | 2 (SDA, SCL) |
-| **Topology** | Point-to-point or bus | Multi-master bus |
-| **Addressing** | CS pin per device | 7-bit address |
-| **Speed** | Higher (MHz typical) | Lower (100-400 kHz) |
-| **Full-Duplex** | Yes | No |
-| **Clock** | Master only | Multi-master |
-| **ACK** | No | Yes (every byte) |
-| **Complexity** | Simpler protocol | More complex |
-| **Pin Usage** | 3 + N (N slaves) | 2 (all slaves) |
-
-### 2. Software Bit-Banging Trade-offs
-
-**Advantages**:
-- ✅ Full control over timing
-- ✅ Support all four SPI modes
-- ✅ Support any bit ordering
-- ✅ Use any GPIO pins
-- ✅ Multiple buses possible
-- ✅ No hardware dependency
-- ✅ Educational value
-- ✅ Custom protocol variations
-
-**Disadvantages**:
-- ❌ CPU intensive (100% during transfer)
-- ❌ Slower than hardware SPI
-- ❌ Affected by interrupts
-- ❌ No DMA support
-- ❌ Larger code size
-- ❌ Higher power consumption
-- ❌ Timing less precise
-
-### 3. Clock Edge Calculation
-
-For 4-byte transfer (READ_ID command):
-```
-Bytes: 4
-Bits per byte: 8
-Total bits: 4 × 8 = 32
-
-Clock transitions per bit: 2 (low→high, high→low)
-Total clock edges: 32 × 2 = 64
-
-Delay calls per bit: 2 (before each edge)
-Total delay calls: 32 × 2 = 64
-```
-
-### 4. Timing Analysis
-
-**Per-Bit Timing** (Mode 0, CPHA=0):
-```
-1. Set MOSI to bit value
-2. delay_half_cycle()         ← 1st delay
-3. Set SCLK active (high)
-4. Read MISO
-5. delay_half_cycle()         ← 2nd delay
-6. Set SCLK idle (low)
-```
-
-**Timing with Cortex-M3 at 25 MHz**:
-```
-NOP instruction: 1 cycle = 40 ns
-delay_half_cycle with 10 NOPs: ~400 ns
-Bit time: 2 × 400 ns = 800 ns
-Bit rate: 1.25 Mbps
-Byte rate: 156.25 kB/s
-```
-
-**With function call overhead** (~20-50 cycles):
-```
-Realistic bit time: ~2-3 μs
-Effective SPI clock: ~300-500 kHz
-```
+| **Signals** | Common four-wire form: SCLK, MOSI, MISO, CS | SDA and SCL |
+| **Topology** | Usually one controller with one or more selected targets | Shared bus; single- or multi-controller operation |
+| **Addressing** | Usually target selection by CS | 7-bit or 10-bit addressing, subject to device support |
+| **Speed** | No protocol-wide maximum; controller, target, and board-specific | Standardized bidirectional modes up to 100 kbit/s, 400 kbit/s, 1 Mbit/s, or 3.4 Mbit/s; unidirectional Ultra Fast-mode reaches 5 Mbit/s |
+| **Full-Duplex** | Conventional four-wire links can be full-duplex | Bidirectional, but not full-duplex on the shared SDA wire |
+| **Clock** | Controller-generated | Controller-generated; synchronization/stretching when supported |
+| **ACK** | No link-level ACK defined by SPI | An ACK/NACK bit normally follows each address or data byte |
+| **Framing** | No universal addressing or command framing; target protocol varies | Defines addressing, START/STOP, ACK/NACK, and arbitration rules |
+| **Pin Usage** | Common topology uses 3 shared wires + N chip selects for N targets | 2 shared signal wires |
 
 ## Key Takeaways
 
 ### 1. Hardware Abstraction Patterns
-- **Function pointers** enable portability and testability
+- **Function pointers** permit backend substitution and tracing
 - **Context pointers** allow multiple device instances
 - **Operations structure** separates interface from implementation
-- Similar to OOP virtual methods in C
+- An operations table resembles virtual-method dispatch; it does not provide automatic object lifetime or type safety
 
-### 2. Protocol State Machines
-- SPI requires precise bit-level state management
-- Mode parameters (CPOL/CPHA) fundamentally change timing
+### 2. Protocol Sequencing
+- Software SPI needs mode-correct bit sequencing and target-specific setup/hold timing
+- CPOL/CPHA determine idle level and launch/sample edge relationships
 - Clock and data must be synchronized carefully
 - CS timing is critical for transaction boundaries
 
 ### 3. Bit-Level Manipulation
-- Efficient bit extraction using shifts and masks
-- Support for MSB-first and LSB-first ordering
+- Bit extraction uses shifts and masks; efficiency depends on the compiled target code
+- Controller-side support for MSB-first and LSB-first ordering
 - Byte assembly from individual bits
-- Understanding binary representation essential
+- The examples connect byte representation to wire order
 
 ### 4. Software Timing Control
-- `volatile` prevents compiler optimization of delays
-- Inline assembly provides cycle-accurate timing
+- The volatile-qualified counters cause GCC to preserve their volatile accesses; `volatile` is not a timing primitive or memory barrier
+- The inline NOP is explicit work, not a guarantee of a particular half-cycle duration
 - Function call overhead matters at high speeds
 - Interrupts can disrupt timing-critical code
 
 ### 5. Testing Without Hardware
-- Simulated devices validate driver logic
-- Metrics (clock edges, delays) verify correct operation
+- This scripted responder checks a limited receive path, not MOSI decoding or target conformance
+- Transition/call counts can catch count mismatches but cannot prove correct timing or data-edge alignment
 - State tracking enables protocol debugging
-- Same driver works with simulation and real hardware
+- A real backend is possible but requires implementation and electrical/timing verification
 
 ### 6. Debugging Embedded Protocols
-- State machines provide visibility into execution flow
-- `volatile` globals expose internal state to GDB
+- The explicit stage variable provides visibility into execution flow
+- Global/static storage plus generated debug information makes these objects discoverable in GDB; `volatile` is not what creates debug symbols
 - Checkpoint functions create consistent breakpoint targets
-- `noinline` attribute ensures functions exist for debugging
+- GCC's `noinline` attribute prevents the checkpoint function from being considered for inlining
 
 ### 7. Full-Duplex Communication
-- SPI transmits and receives simultaneously
-- Every transmitted byte produces a received byte
-- Dummy bytes (0xFF) used for read-only operations
-- Master controls all timing
-
-### 8. Real-World Protocol Implementation
-- Flash memory uses standard command set
-- Device identification via READ_ID command
-- Multi-byte transfers for complex operations
-- CS must remain asserted during transaction
-
-## When to Use Software SPI vs Hardware SPI
-
-### Choose Software SPI When:
-
-✅ **Hardware limitations**
-- All hardware SPI peripherals already in use
-- Need more SPI buses than hardware provides
-- GPIO pins available but no SPI peripheral
-
-✅ **Flexibility requirements**
-- Need to support non-standard SPI modes
-- Custom timing requirements
-- Non-standard bit ordering
-
-✅ **Development/Testing**
-- Prototyping new SPI devices
-- Testing driver logic without hardware
-- Learning SPI protocol details
-- Debugging protocol issues
-
-✅ **Bus recovery**
-- Need manual control for stuck devices
-- Custom error handling required
-
-### Choose Hardware SPI When:
-
-✅ **Performance critical**
-- High-speed transfers (>1 MHz)
-- Large data volumes
-- Real-time constraints
-
-✅ **Power efficiency**
-- Battery-powered devices
-- CPU needs to sleep during transfers
-- System power budget tight
-
-✅ **CPU bandwidth limited**
-- Many simultaneous tasks
-- CPU-intensive application
-- Real-time OS with scheduling
-
-✅ **DMA support needed**
-- Zero-CPU transfers
-- Background data movement
-- Interrupt-driven architecture
-
-✅ **Production systems**
-- Proven hardware reliability
-- Industry-standard implementation
-- Reduced code complexity
-
-## Performance Comparison
-
-### Software SPI (This Lab)
-```
-Clock Speed:     ~300-500 kHz (typical)
-CPU Usage:       100% during transfer
-Transfer 1 KB:   ~20-30 ms
-Code Size:       ~2 KB
-Power:           High (CPU active)
-Flexibility:     Maximum
-```
-
-### Hardware SPI (Typical Cortex-M3)
-```
-Clock Speed:     Up to 18 MHz (72 MHz / 4)
-CPU Usage:       5-10% (interrupt) or 0% (DMA)
-Transfer 1 KB:   ~0.5 ms
-Code Size:       ~500 bytes (driver)
-Power:           Low (CPU can sleep)
-Flexibility:     Limited to hardware modes
-```
-
-### Use Case Comparison
-
-**Software SPI Good For**:
-- Sensor initialization (low data volume)
-- Display controllers (moderate speed OK)
-- SD card initialization (slow mode)
-- Educational purposes
-- Custom protocols
-
-**Hardware SPI Good For**:
-- SD card data transfers (high speed)
-- Audio codecs (continuous streaming)
-- High-speed ADCs/DACs
-- Network interfaces (Ethernet, WiFi)
-- Display frame buffers
+- Conventional four-wire SPI can transmit and receive in the same clocks
+- This driver assembles an RX byte for every transmitted byte; validity depends on the target protocol
+- `0xFF` is this driver's null-TX filler, not a universal read requirement
+- The controller generates SCLK; target response and setup/hold limits still constrain operation
 
 ## References
 
 ### SPI Protocol
-- [SPI Wikipedia](https://en.wikipedia.org/wiki/Serial_Peripheral_Interface)
-- [SPI Protocol Guide by Analog Devices](https://www.analog.com/en/analog-dialogue/articles/introduction-to-spi-interface.html)
-- [Motorola SPI Block Guide](https://www.nxp.com/docs/en/data-sheet/S08SH4.pdf)
+- [Introduction to SPI Interface - Analog Devices](https://www.analog.com/en/resources/analog-dialogue/articles/introduction-to-spi-interface.html)
+- [SPI Block Guide V04.01 - NXP](https://community.nxp.com/t5/NFC-Knowledge-Base/SPI-Block-Guide-V04-01/ta-p/2092682)
+
+### I2C Protocol
+- [I2C-bus specification and user manual - NXP](https://www.nxp.com/docs/en/user-guide/UM10204.pdf)
 
 ### ARM Cortex-M3
 - [ARM Cortex-M3 Technical Reference Manual](https://developer.arm.com/documentation/ddi0337/latest/)
-- [ARM Thumb-2 Instruction Set](https://developer.arm.com/documentation/ddi0308/latest/)
+- [ARM Thumb-2 Supplement Reference Manual](https://developer.arm.com/documentation/ddi0308/latest/)
 
 ### SPI Flash Devices
-- [Winbond W25Q Series Datasheet](https://www.winbond.com/resource-files/w25q32jv%20revg%2003272018%20plus.pdf)
-- [JEDEC JESD216 (Serial Flash Discoverable Parameters)](https://www.jedec.org/standards-documents/docs/jesd216b)
-
-### Embedded Software Patterns
-- [Embedded Software Design Patterns](https://www.embedded.com/design-patterns-for-embedded-systems-in-c/)
-- [Making Embedded Systems by Elecia White](https://www.oreilly.com/library/view/making-embedded-systems/9781449308889/)
-
+- [Winbond W25Q128JV data sheet](https://www.winbond.com/hq/support/documentation/?__locale=en&category=%2F.categories%2Fresources%2Fdatasheet%2F&family=%2Fproduct%2Fcode-storage-flash-memory%2Fserial-nor-flash%2Findex.html&line=%2Fproduct%2Fcode-storage-flash-memory%2Findex.html&pno=W25Q128JV)

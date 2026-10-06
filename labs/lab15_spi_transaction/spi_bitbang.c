@@ -23,9 +23,7 @@ static uint8_t spi_get_tx_bit(uint8_t value, uint8_t bit_index, enum spi_bit_ord
 static void spi_store_rx_bit(uint8_t *value, uint8_t bit_index, uint8_t bit, enum spi_bit_order order) {
     uint8_t shift;
 
-    shift = (order == SPI_MSB_FIRST) ?
-	    (uint8_t) (7U - bit_index) :
-	    bit_index;
+    shift = (order == SPI_MSB_FIRST) ? (uint8_t) (7U - bit_index) : bit_index;
 
     if (bit != 0U) {
         *value |= (uint8_t)(1U << shift);
@@ -35,13 +33,13 @@ static void spi_store_rx_bit(uint8_t *value, uint8_t bit_index, uint8_t bit, enu
 int spi_bitbang_init(struct spi_bitbang_bus *bus) {
     uint8_t idle_level;
 
-    if (bus == 0 ||
-	bus->ops == 0 ||
-	bus->ops->set_sclk == 0 ||
-	bus->ops->set_mosi == 0 ||
-	bus->ops->set_cs == 0 ||
-	bus->ops->get_miso == 0 ||
-	bus->ops->delay_half_cycle == 0) {
+    if (bus == NULL ||
+	bus->ops == NULL ||
+	bus->ops->set_sclk == NULL ||
+	bus->ops->set_mosi == NULL ||
+	bus->ops->set_cs == NULL ||
+	bus->ops->get_miso == NULL ||
+	bus->ops->delay_half_cycle == NULL) {
         return SPI_ERROR_INVALID_ARGUMENT;
     }
 
@@ -74,26 +72,18 @@ void spi_bitbang_deselect(struct spi_bitbang_bus *bus) {
 }
 
 uint8_t spi_bitbang_transfer_byte(struct spi_bitbang_bus *bus, uint8_t tx_byte) {
-    uint8_t rx_byte;
-    uint8_t tx_bit;
-    uint8_t rx_bit;
+    uint8_t rx_byte = 0U;
 
-    uint8_t cpol;
-    uint8_t cpha;
-    uint8_t idle_level;
-    uint8_t active_level;
+    uint8_t cpol = spi_get_cpol(bus->mode);
+    uint8_t cpha = spi_get_cpha(bus->mode);
 
-    rx_byte = 0U;
-
-    cpol = spi_get_cpol(bus->mode);
-    cpha = spi_get_cpha(bus->mode);
-
-    idle_level = cpol;
-    active_level = (uint8_t)(cpol ^ 1U);
+    uint8_t idle_level = cpol;
+    uint8_t active_level = (uint8_t)(cpol ^ 1U);
 
     for (uint8_t bit_index = 0U; bit_index < 8U; ++bit_index) {
-        tx_bit = spi_get_tx_bit(tx_byte, bit_index, bus->bit_order);
+        uint8_t tx_bit = spi_get_tx_bit(tx_byte, bit_index, bus->bit_order);
 
+	uint8_t rx_bit;
 	if (cpha == 0U) {
 	    bus->ops->set_mosi(bus->context, tx_bit);
 	    bus->ops->delay_half_cycle(bus->context);
@@ -106,8 +96,8 @@ uint8_t spi_bitbang_transfer_byte(struct spi_bitbang_bus *bus, uint8_t tx_byte) 
 
 	    bus->ops->delay_half_cycle(bus->context);
 	    bus->ops->set_sclk(bus->context, idle_level);
-	} else {
 
+	} else {
 	    bus->ops->set_sclk(bus->context, active_level);
 	    bus->ops->set_mosi(bus->context, tx_bit);
 
@@ -125,16 +115,11 @@ uint8_t spi_bitbang_transfer_byte(struct spi_bitbang_bus *bus, uint8_t tx_byte) 
     return rx_byte;
 }
 
-int spi_bitbang_transfer(struct spi_bitbang_bus *bus,
-		         const uint8_t *tx_buffer,
-			 uint8_t *rx_buffer,
-			 size_t length) {
-
+int spi_bitbang_transfer(struct spi_bitbang_bus *bus, const uint8_t *tx_buffer, uint8_t *rx_buffer, size_t length) {
     uint8_t tx_byte;
     uint8_t rx_byte;
 
-    if (bus == 0 ||
-        (tx_buffer == 0 && rx_buffer == 0)) {
+    if (bus == 0 || (tx_buffer == 0 && rx_buffer == 0)) {
         return SPI_ERROR_INVALID_ARGUMENT;
     }
 
