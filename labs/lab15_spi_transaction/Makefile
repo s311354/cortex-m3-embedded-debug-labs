@@ -1,4 +1,4 @@
-TARGET := lab14_spi_transaction
+TARGET := lab15_spi_transaction
 PLATFORM := runtime
 
 COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)

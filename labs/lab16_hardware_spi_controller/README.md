@@ -2,7 +2,9 @@
 
 ## Overview
 
-This lab demonstrates **hardware-based SPI communication** using the ARM PrimeCell Synchronous Serial Port (PL022 SSP) controller on the MPS2+ FPGA platform. Unlike Lab 15's software bit-banging approach, this lab uses a dedicated hardware peripheral with integrated FIFOs, clock generation, and protocol state machines.
+This lab demonstrates **MMIO-based programming of the ARM PrimeCell Synchronous Serial Port (PL022 SSP)** using the MPS2/AN385 memory map. The supplied Makefile runs the Cortex-M3 firmware under QEMU's `mps2-an385` machine. The default test selects **SSP3 / Shield0 at `0x40026000`, Mode 0, 8-bit data, internal loopback, and polling**; it does not communicate with an external SPI target.
+
+Unlike Lab 15's in-firmware scripted responder, Lab 16 accesses a peripheral register interface. On hardware, PL022 supplies serial shifting, FIFOs, and clock generation. QEMU's PL022 model implements the register interface, FIFOs, and loopback behavior, but it does not emulate serial line speed and ignores the programmed clock rate and frame format. A passing QEMU loopback test is therefore not a measurement of physical SCLK timing, CPOL/CPHA behavior, pin routing, power, or CPU utilization.
 
 ## Learning Objectives
 
@@ -11,73 +13,67 @@ This lab demonstrates **hardware-based SPI communication** using the ARM PrimeCe
 - Understand hardware FIFO-based data transfer
 - Configure SPI clock generation with prescalers
 - Implement SPI mode control (CPOL/CPHA) via hardware registers
-- Use hardware loopback mode for driver testing
+- Use the controller's internal loopback mode for driver testing
 - Design layered driver architecture (HAL, Board, Application)
-- Configure interrupt sources through peripheral registers
+- Exercise interrupt-mask registers without implementing an interrupt-driven transfer
 - Debug hardware peripheral state with register snapshots
-- Understand polling vs interrupt-driven I/O patterns
+- Distinguish the implemented polling path from a possible interrupt-driven extension
 - Compare hardware vs software SPI implementations
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────┐
-│  Application Layer (main.c)              │
-│  - Test sequence with stages            │
-│  - Loopback data verification           │
-│  - Register state capture                │
-│  - Debug checkpoints                     │
-└──────────────┬──────────────────────────┘
-               │ mps2_ssp_init()
-               │ mps2_ssp_transfer()
-               │ mps2_ssp_enable_interrupts()
+┌───────────────────────────────────────────┐
+│  Application Layer (main.c)               │
+│  - Test sequence, comparison, snapshots   │
+│  - Calls board_ssp3_init() to initialize  │
+│  - Calls HAL directly for transfer/masking│
+└──────────────┬────────────────────────────┘
+               │ initialization
                ▼
-┌─────────────────────────────────────────┐
-│  HAL Driver Layer (mps2_ssp.c)          │
-│  - Hardware initialization              │
-│  - Clock configuration                  │
-│  - FIFO polling and transfer            │
-│  - Interrupt mask control               │
-│  - Timeout handling                     │
-└──────────────┬──────────────────────────┘
-               │ Register access
+┌───────────────────────────────────────────┐
+│  Board Support Layer (board_ssp.c)        │
+│  - Selects SSP3 and default configuration │
+│  - Copies SystemCoreClock into config     │
+│  - Calls mps2_ssp_init()                  │
+└──────────────┬────────────────────────────┘
+               │ config + instance
                ▼
-┌─────────────────────────────────────────┐
-│  Board Support Layer (board_ssp.c)      │
-│  - Platform-specific config             │
-│  - SSP3 instance setup                  │
-│  - Clock source configuration           │
-└──────────────┬──────────────────────────┘
-               │
+┌───────────────────────────────────────────────┐
+│  HAL Driver Layer (mps2_ssp.c)                │
+│  - Register configuration                     │
+│  - One-byte-at-a-time FIFO polling            │
+│  - Poll-iteration timeout counters            │
+│  - Interrupt-mask read-modify-write helpers   │
+└──────────────┬────────────────────────────────┘
+               │ MMIO reads/writes
                ▼
-┌─────────────────────────────────────────┐
-│  PL022 SSP Hardware Registers           │
-│  - CR0: Control Register 0              │
-│  - CR1: Control Register 1              │
-│  - DR: Data Register (FIFO)             │
-│  - SR: Status Register                  │
-│  - CPSR: Clock Prescale Register        │
-│  - IMSC: Interrupt Mask                 │
-│  - RIS/MIS: Interrupt Status            │
-│  - DMACR: DMA Control                   │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  SSP3 / Shield0 register block: 0x40026000  │
+│  - CR0 / CR1: configuration                 │
+│  - DR: write TX FIFO / read RX FIFO         │
+│  - SR / CPSR: status / prescaler            │
+│  - IMSC / RIS / MIS / ICR: interrupt control│
+│  - DMACR: DMA-request control (disabled)    │
+│  - Default data path uses internal loopback │
+└─────────────────────────────────────────────┘
 ```
-
+The board layer is **not between the HAL and its register accesses**. It supplies configuration and invokes initialization.
 
 ## PL022 SSP Hardware Overview
 
 ### Key Features
 
-The ARM PrimeCell Synchronous Serial Port (PL022) provides:
+The physical PL022 IP provides the following capabilities; they are not all exercised by this application or fully modeled in QEMU:
 
 - **Motorola SPI protocol support** (Frame Format)
-- **Master or Slave operation** (configured as Master)
-- **4-16 bit data size** (configured for 8-bit)
+- **Master or Slave operation** (this driver initializes Master mode only)
+- **4-16 bit data size** (this application and its byte-buffer transfer API use 8-bit data)
 - **Programmable bit rate** via dual prescaler system
 - **Integrated TX/RX FIFOs** (8 entries each)
-- **Four SPI modes** (Mode 0-3 via CPOL/CPHA)
+- **Four SPI modes** (Mode 0-3 via CPOL/CPHA; the default application configures Mode 0)
 - **Hardware loopback mode** for testing
-- **Interrupt support** (TX, RX, timeout, overrun)
+- **Interrupt support** (TX/RX FIFO conditions, receive timeout, receive overrun)
 
 ### Register Map
 
@@ -88,26 +84,26 @@ The ARM PrimeCell Synchronous Serial Port (PL022) provides:
 | 0x008 | DR | Data Register | TX/RX FIFO access (write TX, read RX) |
 | 0x00C | SR | Status Register | FIFO status, busy flag |
 | 0x010 | CPSR | Clock Prescale | Even divider 2-254 |
-| 0x014 | IMSC | Interrupt Mask | Enable/disable interrupt sources |
+| 0x014 | IMSC | Interrupt Mask | Gate peripheral interrupt sources; does not configure the NVIC |
 | 0x018 | RIS | Raw Interrupt Status | Raw interrupt flags |
 | 0x01C | MIS | Masked Interrupt Status | After masking |
-| 0x020 | ICR | Interrupt Clear | Clear interrupt flags |
-| 0x024 | DMACR | DMA Control | DMA TX/RX enable |
+| 0x020 | ICR | Interrupt Clear | Write 1 to clear receive overrun/timeout only; not RX/TX FIFO-level conditions |
+| 0x024 | DMACR | DMA Control | Enable TX/RX DMA requests; requires a separately configured DMA system |
 
 ### Clock Generation
 
-The PL022 uses a two-stage prescaler for flexible clock generation:
+In Master mode, PL022 derives its serial output clock from its **SSPCLK input** using two divisors. Do not universally equate SSPCLK, the APB bus clock PCLK, and the Cortex-M3 core clock:
 
 ```
 SSP_CLK = INPUT_CLOCK / (CPSDVSR × (SCR + 1))
 
 Where:
-  INPUT_CLOCK = PCLK (typically 25 MHz on MPS2)
+  INPUT_CLOCK = SSPCLK (assumed to equal SystemCoreClock by this board layer)
   CPSDVSR = Clock prescale divisor (even 2-254) [CPSR register]
   SCR = Serial clock rate (0-255) [CR0[15:8]]
 ```
 
-**Example** (this lab's configuration):
+**Example** (this lab's default configuration):
 ```
 INPUT_CLOCK = 25 MHz
 CPSDVSR = 8
@@ -120,10 +116,10 @@ SSP_CLK = 25,000,000 / (8 × (3 + 1))
 ```
 
 **Clock Rate Selection Strategy**:
-1. Choose CPSDVSR (coarse adjustment): Even numbers 2-254
-2. Choose SCR (fine adjustment): 0-255
-3. Lower values = faster clock (up to INPUT_CLOCK / 2)
-4. Both prescalers multiply for flexibility
+1. CPSDVSR must be an even integer from 2 through 254
+2. SCR can range from 0 through 255; its effective divisor is `SCR + 1`
+3. Smaller divisor products produce faster output, with an arithmetic maximum of `SSPCLK / 2`
+4. Search valid pairs to meet the target's maximum frequency; the current driver accepts explicit values and does not implement that search or validate these ranges
 
 
 ### SPI Mode Configuration (CR0 Register)
@@ -135,8 +131,8 @@ CR0 [31:0]:
   [15:8] SCR    - Serial Clock Rate (0-255)
   [7]    SPH    - SSPCLKOUT phase (CPHA)
   [6]    SPO    - SSPCLKOUT polarity (CPOL)
-  [5:4]  FRF    - Frame format (00=SPI, 01=TI SSI, 10=Microwire)
-  [3:0]  DSS    - Data size select (0011=4-bit ... 1111=16-bit)
+  [5:4]  FRF    - Frame format (00=SPI, 01=TI SSI, 10=Microwire; 11 reserved)
+  [3:0]  DSS    - Data size select (0011=4-bit ... 1111=16-bit; 0000-0010 reserved)
 ```
 
 **SPI Mode Encoding**:
@@ -155,19 +151,19 @@ CR0 [31:0]:
 
 ```
 CR1 [31:0]:
-  [3]  SOD  - Slave output disable
+  [3]  SOD  - Slave-mode output disable; not a Master-mode chip-select control
   [2]  MS   - Master/Slave select (0=Master, 1=Slave)
   [1]  SSE  - SSP Enable (1=Enabled)
-  [0]  LBM  - Loopback mode (1=Enabled, MISO connected to MOSI internally)
+  [0]  LBM  - Internal transmit-shifter to receive-shifter loopback
 ```
 
 ### Status Register (SR)
 
-**SR** provides real-time FIFO and bus status:
+**SR** reports FIFO/busy status. Test the relevant bits rather than expecting a single whole-register constant:
 
 ```
 SR [31:0]:
-  [4] BSY  - SSP busy flag (1=transmitting/receiving)
+  [4] BSY  - SSP busy; includes queued TX data or an active serial transfer on hardware
   [3] RFF  - Receive FIFO full
   [2] RNE  - Receive FIFO not empty (data available)
   [1] TNF  - Transmit FIFO not full (can write)
@@ -189,18 +185,18 @@ Application Layer
    └────┬────┘          └────▲────┘
         ↓ Hardware          │ Hardware
     ┌────────────────────────┐
-    │   SPI Shift Register   │
+    │  TX/RX serial shifters │
     └────────────────────────┘
             ↓         ↑
           MOSI      MISO
 ```
 
 **FIFO Benefits**:
-- **Reduced CPU overhead**: Batch multiple bytes
-- **Improved throughput**: Continuous transmission
-- **Interrupt efficiency**: Less frequent interrupts
-- **Burst transfers**: Write/read multiple bytes at once
-- **Hardware flow control**: Automatic pacing
+- **Batching**: A driver can service several entries per polling/interrupt visit
+- **Throughput**: Keeping TX supplied and RX drained can reduce software-induced gaps
+- **Interrupt efficiency**: PL022 asserts RX service at four or more entries and TX service at four or fewer entries, allowing a driver to service several entries per interrupt
+- **Burst servicing**: Several accesses to DR are possible; each DR access handles one FIFO entry, not an eight-entry bulk transfer
+- **Buffering**: FIFOs absorb limited service latency; they do not provide an external SPI receiver backpressure protocol
 
 **FIFO Depths** (PL022):
 - TX FIFO: 8 entries × 16 bits
@@ -229,21 +225,8 @@ typedef struct {
 } MPS2_SSP_TypeDef;
 
 // Memory-mapped instance
-#define MPS2_SSP3 ((MPS2_SSP_TypeDef *)0x40023000)
+#define MPS2_SSP3 ((MPS2_SSP_TypeDef *)0x40026000UL)
 ```
-
-**CMSIS IO Qualifiers**:
-- `__IO` - Read/Write register
-- `__I` - Read-only register
-- `__O` - Write-only register
-- Volatile semantics enforced
-
-**Why This Pattern**:
-- Type-safe register access
-- Compiler enforces read/write permissions
-- Standard CMSIS pattern across all ARM devices
-- Hardware abstraction without overhead
-- Single memory address → peripheral base
 
 ### 2. Bit Field Manipulation
 
@@ -259,78 +242,45 @@ Standard embedded pattern for register configuration:
 // Building register value
 uint32_t cr0 = 0;
 cr0 |= ((data_bits - 1U) << SSP_CR0_DSS_Pos);  // Data size
-cr0 |= (scr << SSP_CR0_SCR_Pos);                // Clock rate
+cr0 |= ((uint32_t)scr << SSP_CR0_SCR_Pos);                // Clock rate
 cr0 |= SSP_CR0_SPH_Msk;                         // Set CPHA bit
 
 ```
 
 ### 3. Polling vs Interrupt-Driven I/O
 
-**Polling Pattern** (this lab):
+**Polling Pattern** (implemented in this lab):
 
 **Advantages**:
-- ✅ Simple logic flow
-- ✅ Easy to debug
-- ✅ No interrupt configuration needed
-- ✅ Deterministic timing for small transfers
+- ✅ Simple synchronous control flow
+- ✅ Straightforward status/return-code inspection
+- ✅ No SSP ISR or NVIC enable is required for the polling transfer
+- ✅ Small, directly inspectable byte-at-a-time implementation
 
 **Disadvantages**:
-- ❌ CPU busy-waits (100% usage)
-- ❌ Cannot do other work during transfer
-- ❌ Power inefficient
-- ❌ Blocks other tasks
+- ❌ The caller actively polls instead of sleeping while waiting
+- ❌ The call does not return until completion or a polling timeout
+- ❌ No CPU-utilization or power reduction is demonstrated
+- ❌ Interrupts/preemption may still occur; elapsed timing is not guaranteed
 
-**Interrupt Pattern** (prepared in driver):
+**Interrupt Pattern** (not implemented):
 
-**Advantages**:
-- ✅ CPU free for other tasks
-- ✅ Power efficient (sleep between interrupts)
-- ✅ Better for continuous streaming
-- ✅ Scalable to multiple peripherals
+**Potential Advantages**:
+- ✅ The application could do other work between service events
+- ✅ Waiting could use sleep/completion mechanisms with suitable integration
+- ✅ FIFO batching could reduce servicing overhead
+- ✅ Multiple peripherals could be serviced through separate handlers
 
 **Disadvantages**:
-- ❌ More complex code
-- ❌ Race conditions possible
-- ❌ Interrupt latency affects timing
-- ❌ Harder to debug
+- ❌ ISR, NVIC routing/enabling, and completion state must be implemented
+- ❌ Shared-state races and interrupt-source clearing require care
+- ❌ Service latency can cause FIFO starvation, overrun, or inter-frame gaps
+- ❌ Debugging must include asynchronous state, not just mask readback
 
 
-### 4. Three-Layer Driver Architecture
+### 4. Hardware Loopback Testing
 
-**Layer Separation**:
-
-```
-┌────────────────────────────────────┐
-│ Application (main.c)               │  ← High-level test logic
-│ - Business logic                   │
-│ - Test sequences                   │
-│ - Result validation                │
-└─────────────┬──────────────────────┘
-              │ HAL API calls
-┌─────────────▼──────────────────────┐
-│ HAL Driver (mps2_ssp.c)            │  ← Hardware abstraction
-│ - mps2_ssp_init()                  │
-│ - mps2_ssp_transfer()              │
-│ - mps2_ssp_enable_interrupts()     │
-└─────────────┬──────────────────────┘
-              │ Uses board config
-┌─────────────▼──────────────────────┐
-│ Board Support (board_ssp.c)        │  ← Platform config
-│ - g_board_ssp3 instance            │
-│ - g_board_ssp3_config              │
-│ - Clock settings                   │
-└────────────────────────────────────┘
-```
-
-**Benefits**:
-- **Portability**: Change board without changing HAL
-- **Reusability**: Same HAL for different platforms
-- **Testability**: Mock board layer for unit tests
-- **Maintainability**: Clear separation of concerns
-
-### 5. Hardware Loopback Testing
-
-Internal loopback mode connects MOSI to MISO inside the peripheral:
+Internal loopback routes the transmit serial-shifter output to the receive serial-shifter input. It does not require an external MOSI-to-MISO wire or a target device:
 
 ```
 Without Loopback:
@@ -350,43 +300,24 @@ With Loopback (LBM=1):
 ```
 
 **Advantages**:
-- ✅ Test driver without external hardware
-- ✅ Verify TX and RX paths
-- ✅ Check clock generation
-- ✅ Validate FIFO operation
-- ✅ Development without prototype hardware
-
-
-### 6. Debug Infrastructure
-
-Multiple debugging aids for hardware bring-up:
-
-**Debug Checkpoints**:
-- Prevents inlining (guaranteed address for breakpoint)
-- Consistent location across compilations
-- NOP prevents side effects
-
-**Why This Pattern**:
-- `volatile` prevents optimization
-- Visible in GDB without symbols
-- Captures state at specific points
-- Easy post-mortem debugging
-- Common embedded debugging technique
-
+- ✅ Exercise controller TX/RX register paths without an external SPI target
+- ✅ Compare received bytes with transmitted bytes
+- ✅ Inspect configured clock-register values (not measure SCLK)
+- ✅ Exercise basic FIFO availability/read/write behavior
+- ✅ Run functional bring-up under QEMU without a physical prototype
 
 ### Basic Debugging
 
+Exact breakpoint addresses and source-line numbers depend on the compiler and build. Set breakpoints by symbol instead of copying addresses from an earlier build:
+
 ```gdb
 # Set breakpoints
-(gdb) break debug_checkpoint
-Breakpoint 1 at 0x4b8: file main.c, line 25.
-
 (gdb) break main
-Breakpoint 2 at 0x4bc: file main.c, line 31.
+(gdb) break debug_checkpoint
 
 # Start execution
 (gdb) continue
-Breakpoint 2, main () at main.c:31
+Breakpoint 1, main () at main.c:40
 
 # Examine initial state
 (gdb) print g_stage
@@ -399,133 +330,128 @@ $2 = {0x0, 0x0, 0x0, 0x0}
 ### Trace Through Stages
 
 ```gdb
-# Continue to first checkpoint (after init)
+# First checkpoint: buffers prepared, initialization not yet called
 (gdb) continue
-Breakpoint 1, debug_checkpoint () at main.c:25
+Breakpoint 2, debug_checkpoint () at main.c:24
 
 (gdb) print g_stage
 $3 = 1
 
-(gdb) print init_result
-$4 = 0  # MPS2_SSP_OK
+# Snapshot variables have not been populated yet
+(gdb) print/x {reg_cr0, reg_cr1, reg_cpsr}
+$4 = {0x0, 0x0, 0x0}
 
-# Examine hardware registers after init
-(gdb) print/x reg_cr0
-$5 = 0x307  # SCR=3, FRF=0, SPO=0, SPH=0, DSS=7
-
-(gdb) print/x reg_cr1
-$6 = 0x3  # SSE=1, LBM=1, MS=0
-
-(gdb) print/x reg_cpsr
-$7 = 0x8  # CPSDVSR=8
-
-(gdb) print g_board_ssp3.actual_clock_hz
-$8 = 781250  # 25MHz / (8 × 4) = 781.25 kHz
-
-# Continue to second checkpoint (after transfer)
+# Second checkpoint: initialization complete, transfer not yet called
 (gdb) continue
-Breakpoint 1, debug_checkpoint () at main.c:25
+Breakpoint 2, debug_checkpoint () at main.c:24
 
 (gdb) print g_stage
-$9 = 2
+$5 = 2
+
+(gdb) print init_result
+$6 = 0  # MPS2_SSP_OK
+
+# Examine the register snapshot captured after initialization
+(gdb) print/x reg_cr0
+$7 = 0x307  # SCR=3, FRF=0, SPO=0, SPH=0, DSS=7
+
+(gdb) print/x reg_cr1
+$8 = 0x3  # SSE=1, LBM=1, MS=0
+
+(gdb) print/x reg_cpsr
+$9 = 0x8  # CPSDVSR=8
+
+(gdb) print g_board_ssp3.actual_clock_hz
+$10 = 781250  # Software calculation: 25 MHz / (8 × 4)
+
+(gdb) print/x {rx_buffer[0], rx_buffer[1], rx_buffer[2], rx_buffer[3]}
+$11 = {0x0, 0x0, 0x0, 0x0}  # Transfer has not started
+
+# Third checkpoint: transfer and comparison complete
+(gdb) continue
+Breakpoint 2, debug_checkpoint () at main.c:24
+
+(gdb) print g_stage
+$12 = 3
 
 (gdb) print transfer_result
-$10 = 0  # MPS2_SSP_OK
+$13 = 0  # MPS2_SSP_OK
 
 # Verify loopback worked
 (gdb) print/x {tx_buffer[0], tx_buffer[1], tx_buffer[2], tx_buffer[3]}
-$11 = {0x9f, 0xa5, 0x5a, 0xff}
+$14 = {0x9f, 0xa5, 0x5a, 0xff}
 
 (gdb) print/x {rx_buffer[0], rx_buffer[1], rx_buffer[2], rx_buffer[3]}
-$12 = {0x9f, 0xa5, 0x5a, 0xff}  # Matches TX!
+$15 = {0x9f, 0xa5, 0x5a, 0xff}  # Matches TX
 
 (gdb) print verify_result
-$13 = 0  # Success
+$16 = 0  # Success
+
+(gdb) print/x reg_imsc
+$17 = 0x0  # All SSP interrupt sources are masked
 ```
 
 ### Examine Registers During Transfer
 
+Use a fresh run for this section and set the transfer breakpoint before execution reaches `mps2_ssp_transfer()`. Do not inspect DR with a debugger expression: reading DR consumes an RX FIFO entry and changes program behavior.
+
 ```gdb
-# Set breakpoint in transfer function
+# Start from a newly launched or reset target
 (gdb) break mps2_ssp_transfer
-Breakpoint 3 at 0x3a0: file mps2_ssp.c, line 69.
-
 (gdb) continue
-Breakpoint 3, mps2_ssp_transfer () at mps2_ssp.c:69
+Breakpoint 1, mps2_ssp_transfer (...) at mps2_ssp.c:82
 
-# Step into first byte transfer
+# Step through the TNF check to the first DR write
 (gdb) next
 (gdb) next
 
-# Examine DR register (data register)
-(gdb) print/x ssp->regs->DR
-$14 = 0x9f  # First TX byte written
+(gdb) print/x tx[i]
+$1 = 0x9f
 
-# Check status register
+# The write on the current source line has not executed yet
 (gdb) print/x ssp->regs->SR
-$15 = 0x3  # TNF=1, TFE=1 (TX FIFO not full, empty)
+$2 = 0x3  # TFE=1, TNF=1
 
-# Continue until RX data available
-(gdb) next
+# Execute the DR write. QEMU completes loopback immediately.
 (gdb) next
 
 (gdb) print/x ssp->regs->SR
-$16 = 0x4  # RNE=1 (RX FIFO not empty)
+$3 = 0x7  # TFE=1, TNF=1, RNE=1 in QEMU
 
-(gdb) print/x ssp->regs->DR
-$17 = 0x9f  # Loopback data matches!
+# Pass the RNE check, then let firmware read DR
+(gdb) next
+(gdb) next
+
+(gdb) print/x rx[0]
+$4 = 0x9f
 ```
+
+The exact intermediate SR value is timing-dependent on physical hardware. QEMU does not emulate the configured serial clock rate, so its TX-to-RX loopback completes during the MMIO write.
 
 ### Interrupt Configuration Test
 
+This sequence continues from the first stage-3 checkpoint shown in **Trace Through Stages**:
+
 ```gdb
-# Continue to interrupt test stage
+# Continue to the checkpoint after enabling RXIM and RTIM
 (gdb) continue
-Breakpoint 1, debug_checkpoint () at main.c:25
+Breakpoint 2, debug_checkpoint () at main.c:24
 
 (gdb) print g_stage
 $18 = 3
 
-# Check interrupt mask before enable
-(gdb) print/x reg_imsc
-$19 = 0x0  # All interrupts disabled
-
-(gdb) continue
-Breakpoint 1, debug_checkpoint () at main.c:25
-
-# Check after enable
 (gdb) print/x g_board_ssp3.regs->IMSC
-$20 = 0x6  # RXIM=1, RTIM=1 (bits 2 and 1)
+$19 = 0x6  # RXIM=1, RTIM=1 (bits 2 and 1)
 
+# Continue to the checkpoint after masking both sources again
 (gdb) continue
-Breakpoint 1, debug_checkpoint () at main.c:25
+Breakpoint 2, debug_checkpoint () at main.c:24
 
 (gdb) print g_stage
-$21 = 4
+$20 = 4
 
-# Check after disable
 (gdb) print/x g_board_ssp3.regs->IMSC
-$22 = 0x0  # Interrupts disabled again
-```
-
-### Disassemble Key Functions
-
-```gdb
-# Examine SSP register access
-(gdb) disassemble mps2_ssp_init
-   0x00000350 <+0>:     push    {r4, r5, lr}
-   0x00000352 <+2>:     ldr     r3, [r0, #0]      # Load regs pointer
-   0x00000354 <+4>:     ldr     r2, [r3, #4]      # Load CR1
-   0x00000356 <+6>:     bic     r2, r2, #2        # Clear SSE bit
-   0x00000358 <+8>:     str     r2, [r3, #4]      # Write CR1
-   ...
-
-# Look at FIFO write
-(gdb) disassemble /r mps2_ssp_transfer
-   0x000003a8 <+24>:    str     r2, [r3, #8]     # Write to DR (FIFO)
-   0x000003aa <+26>:    ldr     r3, [r0, #0]     # Load regs
-   0x000003ac <+28>:    ldr     r2, [r3, #12]    # Read SR
-   ...
+$21 = 0x0  # All SSP interrupt sources are masked again
 ```
 
 ## Hardware vs Software SPI Comparison
@@ -534,164 +460,73 @@ $22 = 0x0  # Interrupts disabled again
 
 | Aspect | Software (Lab 15) | Hardware (Lab 16) |
 |--------|-------------------|-------------------|
-| **Implementation** | GPIO bit manipulation | PL022 peripheral registers |
-| **Clock Speed** | ~300-500 kHz | Up to 12.5 MHz (25MHz/2) |
-| **CPU Usage** | 100% during transfer | <5% (polling), 0% (DMA) |
-| **Code Size** | ~2 KB | ~1 KB (driver) |
+| **Implementation** | Bit-level callbacks connected to a scripted RAM responder | PL022 MMIO connected to internal loopback |
+| **Clock Speed** | Not measured | 781.25 kHz configured value; not timed by QEMU |
+| **CPU Usage** | Synchronous CPU-driven loop | Synchronous polling; not benchmarked; no DMA transfer |
 | **FIFO** | None | 8×16-bit TX/RX |
-| **Interrupts** | Manual | Hardware support |
-| **DMA** | Not possible | Supported |
-| **Timing Precision** | Function call overhead | Hardware state machine |
-| **Power** | High (CPU active) | Low (CPU can sleep) |
-| **Flexibility** | Full control | Limited to hardware modes |
-| **Pins Used** | Any GPIO | Dedicated SSP pins |
-| **Multiple Buses** | Limited by GPIO | Multiple SSP peripherals |
-
-### When to Use Hardware SPI
-
-**✅ Choose Hardware SPI When**:
-- High-speed transfers required (>1 MHz)
-- Large data volumes (display frames, audio)
-- Power efficiency critical
-- CPU bandwidth limited
-- DMA transfers needed
-- Standard SPI modes sufficient
-- Production systems
-
-**❌ Avoid Hardware When**:
-- All peripherals already allocated
-- Need more SPI buses than available
-- Non-standard timing required
-- Custom protocol variations
-- Development/prototyping only
-
-### Performance Analysis
-
-**Throughput Comparison**:
-
-```
-Software SPI (Lab 15):
-  Clock: ~400 kHz
-  Byte time: ~20 μs
-  1 KB transfer: ~20 ms
-  CPU cycles (25 MHz): 500,000 cycles
-
-Hardware SPI (Lab 16):
-  Clock: 781.25 kHz (configured)
-  Byte time: ~10 μs
-  1 KB transfer: ~10 ms
-  CPU cycles (polling): ~50,000 cycles
-  Speedup: ~10× CPU efficiency
-```
-
-## Key Observations
-
-### 1. Register-Level Hardware Control
-
-The PL022 SSP requires precise register configuration sequence:
-1. **Disable** peripheral (CR1.SSE = 0)
-2. **Configure** all registers
-3. **Enable** peripheral (CR1.SSE = 1)
-
-This pattern is common in ARM peripherals to prevent glitches during reconfiguration.
-
-### 2. Clock Generation Flexibility
-
-The dual prescaler system (CPSR × CR0.SCR) provides fine clock control:
-- 510 possible divider combinations
-- Clock range: PCLK/2 to PCLK/65,024
-- Suitable for various SPI device speeds
-
-### 3. FIFO-Based Architecture
-
-Hardware FIFOs significantly reduce interrupt frequency:
-- **Without FIFO**: Interrupt per byte (1 KB = 1024 interrupts)
-- **With FIFO**: Interrupt per 8 bytes (1 KB = 128 interrupts)
-- **Reduction**: 87.5% fewer interrupts
-
-### 4. Loopback as Development Tool
-
-Internal loopback mode is invaluable for:
-- Driver development without hardware
-- Automated testing in CI/CD
-- Hardware bring-up verification
-- Teaching SPI concepts
-
-### 5. Interrupt vs Polling Trade-offs
-
-**Polling** (this lab):
-- Simple, synchronous
-- Good for small transfers (<256 bytes)
-- No interrupt configuration complexity
-
-**Interrupt** (prepared for):
-- Asynchronous, efficient
-- Good for large/continuous transfers
-- Requires careful state management
+| **Interrupts** | No interrupt-driven transfer | Mask-register helpers only |
+| **Flexibility** | Mode/order selection in bit algorithm | PL022 register capabilities |
+| **Pins Used** | RAM fields, not physical GPIO | Default loopback needs no external target or pin wiring |
+| **Multiple Buses** | Callback interface allows additional instances | Additional instances require board configuration and compatible mappings |
 
 ## Key Takeaways
 
 ### 1. Peripheral Programming Patterns
-- Disable-configure-enable sequence prevents glitches
-- Single register writes (build value, then write)
-- Timeout protection on all polling loops
-- Status flags before data access
+
+- Explain the initialization-time disable/configure/enable sequence without claiming glitch-free live reconfiguration
+- Build CR0/CR1 values before their writes; distinguish these from CR1/IMSC read-modify-write expressions
+- Use finite polling bounds, but do not confuse loop counts with time units
+- Check TNF/RNE before FIFO access and use BSY when final physical-idle confirmation is required
 
 ### 2. Hardware Abstraction
-- Three-layer architecture (App, HAL, Board)
-- Configuration structures separate from instances
-- Platform-specific constants isolated in board layer
-- CMSIS standard register definitions
+
+- Separate application logic, board configuration, and a PL022-specific HAL
+- Keep configuration structures distinct from runtime instances
+- Select the correct base address in the board/SDK layer
+- Use CMSIS qualifier conventions without assuming they enforce all hardware access rules
 
 ### 3. FIFO Management
-- Check status before access (TNF, RNE)
-- Hardware handles pacing automatically
-- Reduces interrupt frequency dramatically
-- Enables burst transfers
 
-### 4. Debugging Techniques
-- `volatile` globals for GDB visibility
-- `noinline` functions for consistent breakpoints
-- Register snapshots at key points
-- Stage tracking for execution flow
-- Result variables for error diagnosis
+- Check availability flags before data-register access
+- A DR write enqueues TX data; a DR read consumes RX data
+- FIFO batching is possible, but not implemented by the byte-at-a-time polling path
+- Hardware receive overflow and pending/stale FIFO data require policies beyond this demonstration
 
-### 5. Production Considerations
-- Always implement timeouts
-- Return specific error codes
-- Document hardware assumptions
-- Support runtime configuration
-- Provide self-test mechanisms (loopback)
+### 4. ARM Cortex-M3 Features Used
 
-### 6. ARM Cortex-M3 Features Used
-- Memory-mapped peripheral access
-- CMSIS register definitions
-- Atomic register operations
-- Efficient bit manipulation
-- Interrupt controller integration
+- CPU load/store access to a memory-mapped peripheral block
+- CMSIS-style register qualifiers and platform-specific register definitions
+- Integer bit masking/shifting for register configuration
+- Debug symbols and checkpoint functions for application inspection
+- Peripheral interrupt-mask manipulation, **not** demonstrated NVIC interrupt delivery
 
 ## References
 
 ### ARM PrimeCell SSP (PL022)
+
 - [PL022 Technical Reference Manual](https://developer.arm.com/documentation/ddi0194/latest/)
-- [ARM Primecell Synchronous Serial Port (PL022)](https://developer.arm.com/ip-products/peripherals/primecell-peripherals/pl022)
 
 ### ARM Cortex-M3
+
 - [Cortex-M3 Technical Reference Manual](https://developer.arm.com/documentation/ddi0337/latest/)
 - [Cortex-M3 Devices Generic User Guide](https://developer.arm.com/documentation/dui0552/latest/)
 
 ### CMSIS
+
 - [CMSIS Documentation](https://arm-software.github.io/CMSIS_5/)
 - [CMSIS Device Template](https://arm-software.github.io/CMSIS_5/Core/html/device_h_pg.html)
 
 ### MPS2+ Platform
-- [ARM MPS2+ FPGA Prototyping Board](https://developer.arm.com/tools-and-software/development-boards/fpga-prototyping-boards/mps2)
+
+- [Cortex-M Prototyping System (MPS2+) data sheet](https://developer.arm.com/-/media/Arm%20Developer%20Community/PDF/Development%20boards%20datasheets/Datasheet_V2M-MPS2plus.pdf?hash=0AF46F54F59EF1D1991D2EA27B2F4B3D062F4539&revision=12ddc10b-7e47-4cc5-a3d2-e0aa34c061da)
 - [AN385 - ARM Cortex-M3 SMM on V2M-MPS2](https://developer.arm.com/documentation/dai0385/latest/)
 
 ### SPI Protocol
+
 - [SPI Protocol Wikipedia](https://en.wikipedia.org/wiki/Serial_Peripheral_Interface)
-- [Motorola SPI Block Guide](https://www.nxp.com/docs/en/data-sheet/MC68HC11E.pdf)
+- [M68HC11E Family Data Sheet, Serial Peripheral Interface chapter](https://www.nxp.com/docs/en/data-sheet/MC68HC11E.pdf)
 
 ### Embedded Systems
+
 - [Making Embedded Systems by Elecia White](https://www.oreilly.com/library/view/making-embedded-systems/9781449308889/)
 - [Embedded Software Primer by David E. Simon](https://www.pearson.com/en-us/subject-catalog/p/embedded-software-primer/P200000003312)
