@@ -1,0 +1,17 @@
+description: Lab22 fixed-rate PL022 clock adapter
+compatible: "lab22,pl022-clock"
+
+include: 
+  - base.yaml
+  - clock-controller.yaml
+
+properties:
+  "#clock-cells":
+    const: 1
+
+  clock-frequency:
+    type: int
+    required: true
+
+clock-cells:
+  - clk_id

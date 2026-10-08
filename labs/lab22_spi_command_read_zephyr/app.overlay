@@ -1,0 +1,47 @@
+/*
+* MPS2/AN385 PL022 Shield0, the same 0x40026000 block as SDK MPS2_SSP3.
+*/
+/ {
+    lab22_clock: lab22-clock {
+        compatible = "lab22,pl022-clock";
+
+        #clock-cells = <1>;
+
+        clock-frequency = <25000000>;
+
+        status = "okay";
+    };
+};
+
+/* The CMSDK GPIO driver requires a clock when clock control is enabled. */
+&gpio0 {
+    clocks = <&sysclk>;
+};
+
+&{/soc} {
+    lab22_spi: spi@40026000 {
+        compatible = "arm,pl022";
+
+        reg = <0x40026000 0x1000>;
+        clocks = <&lab22_clock 0>;
+
+        interrupts = <24 3>;
+
+        pinctrl-0 = <&spi0_default>;
+        pinctrl-names = "default";
+
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        status = "okay";
+
+        lab22_target: target@0 {
+            compatible = "lab22,spi-target";
+
+            reg = <0>;
+            spi-max-frequency = <781250>;
+
+            status = "okay";
+        };
+    };
+};

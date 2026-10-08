@@ -1,0 +1,4 @@
+description: Lab22 SPI command target configuration (not a sensor emulator)
+compatible: "lab22,spi-target"
+include: spi-device.yaml
+on-bus: spi
