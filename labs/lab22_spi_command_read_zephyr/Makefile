@@ -1,4 +1,4 @@
-TARGET := lab21_spi_command_read_zephyr
+TARGET := lab22_spi_command_read_zephyr
 PLATFORM := zephyr
 
 PROJECT_ROOT ?= $(abspath ../..)

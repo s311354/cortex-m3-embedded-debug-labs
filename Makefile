@@ -30,6 +30,7 @@ LABS := \
        lab20_uart_async_rx_manager_zephyr \
        lab21_i2c_register_update_zephyr \
        lab22_spi_command_read_zephyr \
+       lab23_flash_boot_event_logger_zephyr \
        labh1_ahb_pcie_host_bridge \
        labh2_pcie_transaction_model \
        labh3_fpga_pcie_root_port

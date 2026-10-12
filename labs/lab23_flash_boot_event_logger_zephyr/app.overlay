@@ -1,0 +1,15 @@
+/*
+* MPS2/AN385 already includes zephyr.sim-flash at a logical 0x0..0x7fff
+*/
+&storage_partition {
+    reg = <0x00000000 0x7000>;
+};
+
+&flash_sim0 {
+    partitions {
+        bootlog_partition: partition@7000 {
+            label = "bootlog_partition";
+            reg = <0x00007000 0x1000>;
+        };
+    };
+};
