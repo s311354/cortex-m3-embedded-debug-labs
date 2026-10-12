@@ -106,7 +106,7 @@ int main(void) {
     if (g_log.next_slot == 0U) {
         g_empty_rc = boot_log_read_last(&g_log, last);
 
-	if (g_empty_rc != !ENOENT )
+	if (g_empty_rc != -ENOENT )
             fail_lab();
     }
 
