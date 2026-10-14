@@ -46,8 +46,5 @@ void spi_bitbang_deselect(struct spi_bitbang_bus *bus);
 
 uint8_t spi_bitbang_transfer_byte(struct spi_bitbang_bus *bus, uint8_t tx_byte);
 
-int spi_bitbang_transfer(struct spi_bitbang_bus *bus,
-		         const uint8_t *tx_buffer,
-			 uint8_t *rx_buffer,
-			 size_t length);
+int spi_bitbang_transfer(struct spi_bitbang_bus *bus, const uint8_t *tx_buffer, uint8_t *rx_buffer, size_t length);
 #endif
