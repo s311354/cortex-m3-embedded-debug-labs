@@ -45,7 +45,7 @@ run: all
 	if [ -f "$(VENV_PATH)/bin/activate" ]; then \
 		. "$(VENV_PATH)/bin/activate"; \
 	fi; \
-	west build -d "$(BUILD_DIR)" -r run
+	west build -d "$(BUILD_DIR)" -t run
 
 clean:
 	@case "$(abspath $(BUILD_DIR))" in \

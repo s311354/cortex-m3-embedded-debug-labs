@@ -1,0 +1,11 @@
+TARGET := lab24_eeprom_fault_logger_zephyr
+PLATFORM := zephyr
+
+PROJECT_ROOT ?= $(abspath ../..)
+COMMON := $(PROJECT_ROOT)/platform/$(PLATFORM)
+
+BOARD := mps2/an385
+BUILD_DIR := build
+
+# Include common build rules
+include $(COMMON)/Makefile.common

@@ -1,0 +1,18 @@
+/*
+* Eight 32-byte solts reserve EEPROM offsets 0x00..0xff exclusively
+* This is an AT24C02-compatible profile with 8-byte programming pages
+*/
+&i2c_shield1 {
+    status = "okay";
+    clock-frequency = <100000>;
+
+    fault_eeprom: eeprom@50 {
+        compatible = "atmel,at24";
+        reg = <0x50>;
+        size = <256>;
+        pagesize = <8>;
+        address-width = <8>;
+        timeout = <10>;
+        status = "okay";
+    };
+};
