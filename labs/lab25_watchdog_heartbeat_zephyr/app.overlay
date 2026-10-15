@@ -1,0 +1,12 @@
+/*
+* Reuse MPS2's existing CMSDK APB watchdog and its existing clock phandle
+*/
+/ {
+    aliases {
+        watchdog0 = &wdog0;
+    };
+};
+
+&wdog0 {
+    status = "okay";
+};
