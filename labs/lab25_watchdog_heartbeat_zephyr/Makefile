@@ -9,3 +9,6 @@ BUILD_DIR := build
 
 # Include common build rules
 include $(COMMON)/Makefile.common
+
+test:
+	@bash tests/run_host.sh

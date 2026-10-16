@@ -69,7 +69,7 @@ int watchdog_report(struct watchdog_ctx *ctx, unsigned int task_id) {
 	return rc;
 
     if (ctx->state != WATCHDOG_RUNNING) {
-	return -EIO;
+	rc = -EIO;
     } else {
         ctx->reported_mask |= (uint8_t)(1U << task_id);
 	rc = 0;
