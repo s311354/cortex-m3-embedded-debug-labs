@@ -83,28 +83,3 @@ else
     exit 1
 fi
 echo ""
-
-echo "==================================================="
-echo "✓ ALL VERIFICATION CHECKS PASSED"
-echo "==================================================="
-echo ""
-
-# Offer to open GTKWave
-if [ "$1" = "--wave" ]; then
-    if command -v gtkwave >/dev/null 2>&1; then
-        echo "Opening GTKWave with pre-configured signals..."
-        if [ -f labh3_verification.gtkw ]; then
-            gtkwave build/labh3.vcd labh3_verification.gtkw &
-        else
-            gtkwave build/labh3.vcd &
-        fi
-    else
-        echo "GTKWave not found. Install with: sudo apt install gtkwave"
-    fi
-else
-    echo "To view waveforms, run:"
-    echo "  gtkwave build/labh3.vcd labh3_verification.gtkw"
-    echo ""
-    echo "Or re-run with: ./verify.sh --wave"
-fi
-echo ""
