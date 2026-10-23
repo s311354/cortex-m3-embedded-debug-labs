@@ -26,7 +26,7 @@
 
 /* SRAM (Data Region) */
 #define CM3DS_MPS2_SRAM_BASE         0x20000000  /*!< SRAM base address */
-#define CM3DS_MPS2_SRAM_SIZE         0x00020000  /*!< 64 KB (0x20000) */
+#define CM3DS_MPS2_SRAM_SIZE         0x00020000
 
 /* Convenience aliases */
 #define CM3DS_MPS2_RAM_BASE          CM3DS_MPS2_SRAM_BASE
