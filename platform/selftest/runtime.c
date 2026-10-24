@@ -28,7 +28,7 @@ void copy_data(void) {
 void zero_bss(void) {
     uint32_t *dst = &_sbss;
 
-    while (dst < &_edata) {
+    while (dst < &_ebss) {
         *dst++ = 0;
     }
 }
