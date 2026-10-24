@@ -100,7 +100,7 @@ $(TARGET).elf: $(LINKER_SCRIPT_OUTPUT) $(OBJS)
 	@$(OBJDUMP) -t $@ | grep -E "__flash_size__|__ram_size__|__ram_used__|__ram_free__|__stack_size__|__heap_size__|__text_size__|__data_size__|__bss_size__" | \
 		awk '{printf "%-20s = 0x%08x (%d bytes)\n", $$NF, strtonum("0x"$$1), strtonum("0x"$$1)}' || true
 
-$(TARGET).bin:
+$(TARGET).bin: $(TARGET).elf
 	$(OBJCOPY) -O binary $(TARGET).elf $(TARGET).bin
 
 dump: $(TARGET).elf
