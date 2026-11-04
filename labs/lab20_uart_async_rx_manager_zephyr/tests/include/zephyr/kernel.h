@@ -1,0 +1,4 @@
+#ifndef HOST_ZEPHYR_KERNEL_H
+#define HOST_ZEPHYR_KERNEL_H
+
+#endif
