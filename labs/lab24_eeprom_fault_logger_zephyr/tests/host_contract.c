@@ -486,6 +486,16 @@ static void error_tests(void) {
 
 	CHECK(fault_log_append(&log, 12345) == -EIO && !log.initialized);
 	++cases;
+
+	clean_controls();
+
+	CHECK(fault_log_init(&log, &dev) == 0);
+
+	uint32_t recovered_code;
+	CHECK(fault_log_latest(&log, &recovered_code) == 0);
+
+	CHECK(recovered_code == UINT32_C(0xabc00007));
+	++cases;
     } 
 
     for (unsigned int byte = 0; byte < 32; ++byte) {
