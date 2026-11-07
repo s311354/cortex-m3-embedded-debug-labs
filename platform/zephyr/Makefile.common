@@ -38,7 +38,7 @@ gdb:
 		echo "Error: $(ZEPHYR_ELF) not found. Build the lab first." >&2; \
 		exit 1; \
 	}
-	$(GDB) "$(ZEPHYR_ELF)" -ex "target remote 127.0.0.1:1234"
+	$(GDB) -q "$(ZEPHYR_ELF)" -ex "target remote 127.0.0.1:1234"
 
 run: all
 	@set -eu; \

@@ -33,6 +33,7 @@ LABS := \
        lab23_flash_boot_event_logger_zephyr \
        lab24_eeprom_fault_logger_zephyr \
        lab25_watchdog_heartbeat_zephyr \
+       lab26_dma_transfer_queue_zephyr \
        labh1_ahb_pcie_host_bridge \
        labh2_pcie_transaction_model \
        labh3_fpga_pcie_root_port
