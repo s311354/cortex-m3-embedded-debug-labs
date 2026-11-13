@@ -1,0 +1,138 @@
+# ==========================================
+# ARMv8-A AArch64 Common Makefile
+# ==========================================
+
+# Toolchain
+CROSS_COMPILE ?= aarch64-linux-gnu-
+
+CC         := $(CROSS_COMPILE)gcc
+OBJCOPY    := $(CROSS_COMPILE)objcopy
+OBJDUMP    := $(CROSS_COMPILE)objdump
+READELF    := $(CROSS_COMPILE)readelf
+SIZE       := $(CROSS_COMPILE)size
+
+GDB        ?= gdb-multiarch
+QEMU       ?= qemu-system-aarch64
+
+# Target CPU
+CPU := cortex-a53
+
+# Build output
+BUILD_DIR := build
+
+ELF := $(BUILD_DIR)/$(TARGET).elf
+BIN := $(BUILD_DIR)/$(TARGET).bin
+MAP := $(BUILD_DIR)/$(TARGET).map
+
+OBJS := \
+	$(BUILD_DIR)/startup.o \
+	$(BUILD_DIR)/main.o
+
+# Compiler flags
+CFLAGS := \
+	  -mcpu=$(CPU) \
+	  -g3 \
+	  -o0 \
+	  -ffreestanding \
+	  -fno-builtin \
+	  -fno-stack-protector \
+	  -fno-pie \
+	  -fno-pic \
+	  -fno-unwind-tables \
+	  -fno-asynchronous-unwind-tables \
+	  -Wall \
+	  -Wextra \
+	  -Werror
+
+ASFLAGS := \
+	   -mcpu=$(CPU) \
+	   -g3
+
+# Linker flags
+LDFLAGS := \
+	   -nostdlib \
+	   -nostartfiles \
+	   -static \
+	   -no-pie \
+	   -Wl,-T,$(COMMON)/linker.ld \
+	   -Wl,-Map,$(MAP) \
+	   -Wl,--build-id=none \
+	   -Wl,-z,max-page-size=0x1000
+
+# QEMU configuration
+QEMU_ARGS := \
+	     -M virt \
+	     -cpu $(CPU) \
+	     -m 256M \
+	     -smp 1 \
+	     -accel tcg \
+	     -nographic \
+	     -monitor none \
+	     -serial none 
+
+.DEFAULT_GOAL := all
+
+.PHONY: all run debug gdb dump check clean
+
+
+# ==================
+# Build
+# ==================
+
+all: $(ELF) $(BIN)
+
+$(BUILD_DIR):
+	mkdir -p $@
+
+$(BUILD_DIR)/startup.o: $(COMMON)/startup.S | $(BUILD_DIR)
+	$(CC) $(ASFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/main.o: main.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(ELF): $(OBJS) $(COMMON)/linker.ld
+	$(CC) $(OBJS) $(LDFLAGS) -o $@
+	$(SIZE) $@
+
+$(BIN): $(ELF)
+	$(OBJCOPY) -O binary $< $@
+
+# ==================
+# ELF Inspection
+# ==================
+
+check: $(ELF)
+	$(READELF) -h $(ELF)
+	$(READELF) -l $(ELF)
+
+dump: $(ELF)
+	$(OBJDUMP) -d -S $(ELF)
+
+# ===================
+# QEMU
+# ===================
+
+run: $(ELF)
+	$(QEMU) $(QEMU_ARGS) -kernel $<
+
+# ===================
+# QEMU + GDB Debugging
+# ===================
+
+debug: $(ELF)
+	$(QEMU) $(QEMU_ARGS) \
+		-S \
+		-gdb tcp:127.0.0.1:1234 \
+		-kernel $<
+
+gdb: $(ELF)
+	$(GDB) -q $(ELF) \
+		-ex "target remote 127.0.0.1:1234"
+
+
+# ================
+# Clean
+# ================
+
+clean:
+	rm -rf $(BUILD_DIR)

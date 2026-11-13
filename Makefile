@@ -38,9 +38,13 @@ LABS := \
        labh2_pcie_transaction_model \
        labh3_fpga_pcie_root_port
 
+# ARMv8-A labs use a separate toolchain
+ARMV8_LABS := \
+       labv8a00_aarch64_cross_compile
+
 LAB_DIR := labs
 
-.PHONY: all clean run debug gdb dump doctor test help list $(LABS)
+.PHONY: all clean run debug gdb dump doctor test help list $(LABS) $(ARMV8_LABS)
 
 doctor:
 	@CORTEX_ROOT="${CORTEX_ROOT}" ./scripts/doctor.sh
@@ -74,14 +78,14 @@ clean:
 # Example:
 #     make lab00_cross_compile
 # ===============================
-$(LABS):
+$(LABS) $(ARMV8_LABS):
 	@$(MAKE) -C $(LAB_DIR)/$@
 
 # ===============================
 # Show supported labs
 # ===============================
 list:
-	@printf "%s\n" $(LABS)
+	@printf "%s\n" $(LABS) $(ARMV8_LABS)
 
 # ===============================
 # Run / Debug / GDB
@@ -132,7 +136,7 @@ help:
 	@echo " make dump LAB=<lab_name>       "
 	@echo ""
 	@echo "Build a single lab:"
-	@for lab in $(LABS); do \
+	@for lab in $(LABS) $(ARMV8_LABS); do \
 		echo " make $$lab"; \
 	done
 	@echo ""
