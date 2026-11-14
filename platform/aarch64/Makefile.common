@@ -3,7 +3,7 @@
 # ==========================================
 
 # Toolchain
-CROSS_COMPILE ?= aarch64-linux-gnu-
+CROSS_COMPILE ?= aarch64-none-elf-
 
 CC         := $(CROSS_COMPILE)gcc
 OBJCOPY    := $(CROSS_COMPILE)objcopy
@@ -32,7 +32,7 @@ OBJS := \
 CFLAGS := \
 	  -mcpu=$(CPU) \
 	  -g3 \
-	  -o0 \
+	  -O0 \
 	  -ffreestanding \
 	  -fno-builtin \
 	  -fno-stack-protector \

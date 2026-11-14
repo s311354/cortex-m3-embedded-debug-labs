@@ -91,9 +91,9 @@ static int config_write32(uint32_t bdf, uint32_t reg, uint32_t value) {
     g_pcie->cfg_bdf = bdf;
     g_pcie->cfg_reg = reg;
 
-    g_pcie->cfg_command = M3DS_PCIE_CMD_CFG_WRITE;
-
     g_pcie->cfg_wdata = value;
+
+    g_pcie->cfg_command = M3DS_PCIE_CMD_CFG_WRITE;
 
     return wait_completion(0);
 }

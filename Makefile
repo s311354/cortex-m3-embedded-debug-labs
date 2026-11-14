@@ -40,7 +40,8 @@ LABS := \
 
 # ARMv8-A labs use a separate toolchain
 ARMV8_LABS := \
-       labv8a00_aarch64_cross_compile
+       labv8a00_aarch64_cross_compile \
+       labv8a01_core_registers
 
 LAB_DIR := labs
 

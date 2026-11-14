@@ -32,19 +32,34 @@ if [ -z "${LAB}" ]; then
     echo ""
     echo "Usage: $0 <lab_name>"
     echo "Example: $0 lab01_core_registers"
+    echo "Example: $0 labv8a00_aarch64_cross_compile"
     echo ""
-    echo "Or with number: $0 01"
+    echo "Or with number:"
+    echo "  $0 01         (matches lab01_*)"
+    echo "  $0 v8a00      (matches labv8a00_*)"
     exit 1
 fi
 
-# Handle numeric input (e.g., "01" -> "lab01_*")
+# Handle numeric input (e.g., "01" -> "lab01_*", "v8a00" -> "labv8a00_*")
 if [[ "${LAB}" =~ ^[0-9]+$ ]]; then
+    # Standard lab format: lab01, lab02, etc.
     LAB_NUM=$(printf "%02d" "$((10#${LAB}))")
     LAB_MATCH=$(find "${ROOT}/labs" -maxdepth 1 -type d -name "lab${LAB_NUM}_*" | head -n 1)
     if [ -n "${LAB_MATCH}" ]; then
         LAB=$(basename "${LAB_MATCH}")
     else
         echo "Error: Lab ${LAB_NUM} not found"
+        exit 1
+    fi
+elif [[ "${LAB}" =~ ^v8a[0-9]+$ ]]; then
+    # ARMv8-A lab format: labv8a00, labv8a01, etc.
+    LAB_NUM=$(echo "${LAB}" | sed 's/^v8a//')
+    LAB_NUM=$(printf "%02d" "$((10#${LAB_NUM}))")
+    LAB_MATCH=$(find "${ROOT}/labs" -maxdepth 1 -type d -name "labv8a${LAB_NUM}_*" | head -n 1)
+    if [ -n "${LAB_MATCH}" ]; then
+        LAB=$(basename "${LAB_MATCH}")
+    else
+        echo "Error: Lab v8a${LAB_NUM} not found"
         exit 1
     fi
 fi
