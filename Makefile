@@ -42,7 +42,8 @@ LABS := \
 ARMV8_LABS := \
        labv8a00_aarch64_cross_compile \
        labv8a01_aarch64_core_registers \
-       labv8a02_aarch64_interrupt_control
+       labv8a02_aarch64_interrupt_control \
+       labv8a03_aarch64_svc_exception
 
 LAB_DIR := labs
 

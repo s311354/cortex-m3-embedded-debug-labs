@@ -3,7 +3,7 @@
 # AArch64 Core Registers
 # ==============================
 
-TARGET := labv8a01_core_registers
+TARGET := labv8a01_aarch64_core_registers
 
 PROJECT_ROOT ?= $(abspath ../..)
 
