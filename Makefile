@@ -41,7 +41,8 @@ LABS := \
 # ARMv8-A labs use a separate toolchain
 ARMV8_LABS := \
        labv8a00_aarch64_cross_compile \
-       labv8a01_core_registers
+       labv8a01_aarch64_core_registers \
+       labv8a02_aarch64_interrupt_control
 
 LAB_DIR := labs
 
