@@ -90,6 +90,8 @@ svc_sync_entry:
     cmp x0, #0x15
     b.ne Default_Handler
 
+    /* Pass the saved exception frame */
+    mov x0, sp
     bl SVC_Handler
 
     ldr x30,      [sp, #240]

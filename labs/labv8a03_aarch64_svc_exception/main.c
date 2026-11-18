@@ -26,7 +26,9 @@ void Trigger_SVC(void) {
 }
 
 /* Called by shared startup.S */
-void SVC_Handler(void) {
+void SVC_Handler(const uint64_t *stack) {
+    (void) stack;
+
     exc_return = __arm_rsr64("ELR_EL1");
     g_esr_el1 = __arm_rsr64("ESR_EL1");
     g_spsr_el1 = __arm_rsr64("SPSR_EL1");
