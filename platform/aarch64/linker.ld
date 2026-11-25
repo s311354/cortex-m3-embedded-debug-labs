@@ -14,6 +14,16 @@ SECTIONS
 	    *(.text .text.*)
     } > RAM
 
+    /* EL0 executable region: complete 4 KiB MMU pages */
+    .el0_text : ALIGN(4096)
+    {
+	    el0_code_start = .;
+
+	    KEEP(*(.el0_text .el0_text.*))
+	    . = ALIGN(4096);
+	    el0_code_end = .;
+    } > RAM
+
     .rodata : ALIGN(16)
     {
 	    *(.rodata .rodata.*)

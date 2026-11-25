@@ -47,7 +47,7 @@ __exception_vectors:
     VECTOR Default_Handler      /* 0x380 SError */
 
     /* Lower EL, AArch64: 0x400 - 0x580 */
-    VECTOR Default_Handler      /* 0x400 synchronous */
+    VECTOR lower_sync_entry     /* 0x400 synchronous */
     VECTOR Default_Handler      /* 0x480 IRQ */
     VECTOR Default_Handler      /* 0x500 FIQ */
     VECTOR Default_Handler      /* 0x580 SError */
@@ -61,6 +61,25 @@ __exception_vectors:
 
 .section .text.exception, "ax"
 .balign 4
+
+/* EL1h -> EL0t The caller configures EL0 mappings and must not expect a return to EL1 */
+.global enter_el0
+.type enter_el0, %function
+enter_el0:
+    msr sp_el0, x1
+    msr elr_el1, x0
+    mov x2, #0x3c0 /* DAIF masked, EL0t */
+    msr spsr_el1, x2
+    isb
+    eret
+.size enter_el0, . - enter_el0
+
+/* Both EL1h and lower-EL AArch64 exceptions use SP_EL1 */
+.global lower_sync_entry
+.type lower_sync_entry, %function
+lower_sync_entry:
+    b svc_sync_entry
+.size lower_sync_entry, . - lower_sync_entry
 
 .global svc_sync_entry
 .type svc_sync_entry, %function
@@ -114,6 +133,14 @@ svc_sync_entry:
     eret
 .size svc_sync_entry, . - svc_sync_entry
 
+.type sync_fault_entry, %function
+sync_fault_entry:
+    /* Pass the same software-save frame. */
+    mov x0, sp
+    bl Sync_Fault_Handler
+    b Default_Handler
+.size sync_fault_entry, . - sync_fault_entry
+
 /* Weak fallback */
 .weak Default_Handler
 .type Default_Handler, %function
@@ -128,3 +155,9 @@ Default_Handler:
 SVC_Handler:
     b Default_Handler
 .size SVC_Handler, . - SVC_Handler
+
+.weak Sync_Fault_Handler
+.type Sync_Fault_Handler, %function
+Sync_Fault_Handler:
+    b Default_Handler
+.size Sync_Fault_Handler, . - Sync_Fault_Handler
